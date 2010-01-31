@@ -1,0 +1,396 @@
+#!/bin/bash
+# Module Manager
+# Version 1.0 (Jan 30, 2010)
+
+# System Requirements:
+# - bash
+# - web server must follow symlinks
+# - The following utilities must be locatable in your $PATH
+#     svn, grep (POSIX), find, ln, sed, cp, basename, dirname
+
+#   Copyright 2009 Colin Mollenhour
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+
+script=${0##*/}
+usage="
+----------------------
+Module Manager
+----------------------
+Usage: $script <module> <action> [svn args]
+Supported global actions (no module specified):
+  init           initialize the current directory as the modman root (no module name)
+  update-all     update all modules that are currently checked out
+
+Supported actions: (all svn commands support additional arguments)
+  checkout       checkout a new modman compatible module
+  export         export a modman compatible module (does real copy instead of symlinks)
+  update [...]   update module
+  add <svn_path> <real_path>   add a file/dir to the modman file and working copy
+  delete <svn_path>   remove a file/dir from the modman file and working copy
+  status         show status of entire module
+  diff [...]     run svn diff on module
+  commit [...]   commit changes to module
+  info           show the module's working copy path and run svn info on working copy
+  list           list the definitions in the modman file
+
+The repository should contain a file called \"modman\" which defines which files
+go where relative to the directory where modman was initialized.
+
+If additional arguments are given to commands such as commit, paths
+should be relative to the svn root.
+
+---- Start example modman file ----
+# Comments are supported, begin a line with a hash
+code                   app/code/local/My/Module/
+design                 app/design/frontend/default/default/mymodule/
+locale/My_Module.xml   app/locale/en_US/My_Module.xml
+My_Module.xml          app/etc/modules/My_Module.xml
+
+# Import another modman module!
+@import                modules/Fooman_Speedster
+---- End example modman file ----
+
+One modman file can import another modman file using @import and the root of the
+module relative to the parent working copy. Typically, this means you will have
+used svn:externals so that the working copy contains the code in a subdirectory.
+For example:
+
+> svn propget svn:externals .
+^/modules/Fooman_Speedster  modules/Fooman_Speedster
+
+In this example, modules/Fooman_Speedster would contain it's own modman file which
+contains definitions which are relative to the same root as the parent module it
+was imported from. Therefore, an @import has the exact same effect as running
+\"modman xxx checkout\" from the same project root.
+
+Author:
+Colin Mollenhour
+http://colin.mollenhour.com/
+colin@mollenhour.com
+"
+
+# bash implementation of realpath / readlink -f
+# arg1 - filename
+realpath()
+{
+	fname=${1%/} # strips trailing '/'
+	while [ -L "$fname" ]; do
+	 oldfname="$fname"
+	 fname="$(command ls -l $fname)"
+	 fname="${fname#*> }"
+	 if [ "$fname" = . ] ; then
+	 fname="$(dirname $oldfname)"
+	 elif echo $fname | grep -vq '^/' - ; then
+	 fname="$(dirname $oldfname)/$fname"
+	 fi
+	done
+	pushd $(dirname $fname) > /dev/null
+	fname=$(pwd -P)/$(basename $fname)
+	popd > /dev/null
+	echo $fname
+}
+
+
+# Handle "init" command, simply create .modman directory
+if [ "$1" = "init" ]; then
+  mkdir .modman && echo "Initialized Module Manager at `pwd`"
+  exit 0
+elif [ "$1" = "--help" ]; then
+  echo -e "$usage"
+  exit 0
+fi
+
+# Find the .modman directory and store parent path in $root
+_pwd=$(realpath `pwd`)
+
+rel=''
+mm_not_found="Module Manager directory not found.\nRun \"$script init\" in the web root of the Magento installation with which you would like to use Module Manager."
+root=$_pwd
+while ! [ -d $root/.modman ]; do
+  if [ "$root" = "/" ]; then echo -e $mm_not_found && exit 1; fi
+  rel=${root##*/}/$rel
+  cd .. || (echo -e "ERROR: Could not traverse up from $root\n$mm_not_found" && exit 1)
+  root=`pwd`
+done
+
+mm_dir=$root/.modman      # path to .modman
+
+# Handle "update-all" command
+if [ "$1" = "update-all" ]; then
+  if [ -n "$2" ]; then echo "Too many arguments to update-all command"; exit 1; fi
+  for module in `ls $mm_dir`; do
+    echo "Updating module: $module"
+    $0 $module update || exit 1
+  done
+  echo "Successfully updated all modules."
+  exit 0
+fi
+
+module=$1; shift          # module name
+wc_dir=$mm_dir/$module    # working copy directory for module
+wc_desc=$wc_dir/modman    # path to modman structure descriptor file
+
+action=$1; shift          # svn command to be used
+
+if [ -z "$module" ]; then
+  echo -e "Not enough arguments (no module specified)\n$usage" && exit 1
+fi
+if [ -z "$action" ]; then
+  echo -e "Not enough arguments (no action specified)\n$usage" && exit 1
+fi
+
+if [ "$1" == "--force" ]; then
+  FORCE="1"; shift
+else
+  FORCE="0"
+fi
+
+cd $_pwd; #restore old root
+
+require_wc ()
+{
+  if ! [ -d $wc_dir ]; then
+    echo "ERROR: The '$module' module has not been checked out."; exit 1
+  fi
+  if ! [ -r $wc_desc ]; then
+    if ! [ -r $wc_dir/.modman ]; then
+      echo "ERROR: The '$module' module does not contain a \"modman\" module description file."; exit 1
+    else
+      echo "The '.modman' file should be renamed to 'modman'. Rename the file and run svn update manually and then run modman update."; exit 1
+    fi
+  fi
+  return 0
+}
+
+create_links ()
+{
+  grep -v '^#' $1 | grep -v '^\s*$' | \
+  while read svn real; do
+    module_dir=`dirname $1`
+    src=$module_dir/$svn
+    dest=$root/${real%/}
+
+    # Import other module definitions (which are typically imported via svn:externals)
+    if [[ "$svn" == "@import" ]]; then
+      import=$module_dir/$real/modman
+      if ! [ -r $import ]; then
+        echo "Failed \"@import $real\", $import not found."; return 1
+      else
+        create_links $import || return 1
+        continue
+      fi
+    fi
+
+    # Handle aliases that do not exist
+    if ! [ -e $src ]; then
+      if [ -L $dest ]; then
+        rm $dest && echo "Removed bad link to $real"
+      fi
+      echo "WARNING: Alias described in \"modman\" does not exist in working copy: $svn"
+      continue
+    fi
+
+    # Handle cases where files already exist at the destination
+    if [ -e $dest ] && ! [ -L $dest ]; then
+      if [ "$FORCE" == "0" ]; then
+        echo -e "CONFLICT: $real already exists and is not a link.\nRun with --force to force removal of existing files."
+        return 1
+      else
+        rm -rf $dest
+      fi
+    fi
+
+    # Create links if they do not already exist
+    if ! [ -e $dest ]; then
+      mkdir -p ${dest%/*}
+      if ln -s $src $dest
+      then
+        echo "Created link for new module directive: $svn $real"
+      else
+        echo -e "Unable to create softlink for rule: $svn $real"
+        return 1
+      fi
+    fi
+  done
+  return 0
+}
+
+copy_over ()
+{
+  grep -v '^#' $1 | grep -v '^\s*$' | \
+  while read svn real; do
+    module_dir=`dirname $1`
+    src=$module_dir/$svn
+    dest=$root/${real%/}
+
+    # Handle @import case
+    if [[ "$svn" == "@import" ]]; then
+      import=$module_dir/$real/modman
+      if ! [ -r $import ]; then
+        echo "Failed \"@import $real\", $import not found."; return 1
+      else
+        copy_over $import || return 1
+        continue
+      fi
+    fi
+
+    # Copy the files to their respective locations using hardlinks for efficiency
+    if ! [ -e `dirname $dest` ]; then
+      mkdir --parents `dirname $dest`;
+    fi
+    cp --recursive --link $src $dest || return 1
+  done
+  return 0
+}
+
+case "$action" in
+
+  status)
+    require_wc
+    cd $wc_dir
+    svn status $@
+    ;;
+
+  diff)
+    require_wc
+    cd $wc_dir
+    svn diff $@
+    ;;
+
+  info)
+    require_wc
+    cd $wc_dir
+    echo "$wc_dir"
+    svn info $@
+    ;;
+
+  commit)
+    require_wc
+    cd $wc_dir
+    sed --in-place -e '/^$/d' $wc_desc
+    svn commit $@
+    ;;
+
+  update)
+    require_wc
+    cd $wc_dir
+    cp modman .modman-old
+    svn update $@ || (echo "failed to update working copy"; rm .modman-old; exit 1)
+
+    #remove any links that were removed from modman file
+    grep -F -vxf modman .modman-old | grep -v '^#' | grep -v '^\s*$' | \
+    while read svn real; do
+      if [ -L $root/$real ]; then
+        rm $root/${real%/}
+      fi
+    done
+    rm .modman-old
+
+    create_links $wc_desc && echo "Update of module $module complete."
+    # remove dead symlinks
+    find -L $root -type l -delete
+    ;;
+
+  add)
+    require_wc
+    svn=$1; shift
+    real=$1; shift
+    if [ -z $svn ]; then echo -e "Not enough arguments to \"add\".\n$usage"; exit 1; fi
+    if [ -z $real ] || ! [ -e $root/$real ]; then echo "Real path not specified or not found ($real)"; exit 1; fi
+    cd $wc_dir
+    if ! [ "`dirname $svn`" = "." ]; then mkdir -p `dirname $svn` || exit 1; fi
+    if ! [ -e `dirname $svn` ]; then echo "$svn does not exist"; exit 1; fi
+    if ! mv $root/$real $wc_dir/$svn
+    then
+      echo "Could not move $root/$real to $wc_dir/$svn, make sure the files are closed."
+      exit 1
+    fi
+    if
+      svn add --parents $@ $svn &&
+      echo "$svn $real" >> $wc_desc &&
+      ln -s $wc_dir/$svn $root/${real%/}
+    then
+      echo "Scheduled add of $real under svn alias $svn"
+      create_links $wc_desc
+    else
+      echo "An error occurred while trying to add $real under svn alias $svn"
+    fi
+    ;;
+
+  delete)
+    require_wc
+    cd $wc_dir
+    svn=$1; shift
+    if [ -z $svn ]; then echo -e "You must specify an alias to delete.\n$usage"; exit 1; fi
+    if [ `grep -c "'^$svn '" < $wc_desc` != "1" ]; then
+      echo "Alias rule not found for '$svn'"; exit 1
+    fi
+    if
+      svn delete $@ &&
+      sed --in-place -e "'\\#^$svn #d'" $wc_desc
+    then
+      echo "Scheduled delete of svn alias $svn"
+    else
+      echo "An error occurred while trying to remove svn alias $svn"
+    fi
+    ;;
+
+  checkout)
+    cd $mm_dir
+    if [ -d $wc_dir ]; then
+      echo "A module by that name has already been checked out"; exit 1
+    fi
+    if
+      svn checkout $@ $module &&
+      require_wc &&
+      create_links $wc_desc
+    then
+      echo "Checkout of module $module complete"
+      # remove dead symlinks
+      find -L $root -type l -delete
+    else
+      if [ -d $wc_dir ]; then rm -rf $wc_dir; fi
+      echo "Error checking out $module, operation cancelled."
+    fi
+    ;;
+
+  list)
+    require_wc
+    echo "--Module Manager alias definitions for $module module:"
+    cat $wc_desc
+    ;;
+
+  export)
+    cd $mm_dir
+    if [ -d $wc_dir ]; then
+      echo "You cannot export a module that has already been checked out"; exit 1
+    fi
+    if
+      svn export $@ $module &&
+      require_wc &&
+      copy_over $wc_desc
+    then
+      echo "Exported $module to $root"
+    else
+      echo "Failed to export module to $root"
+    fi
+    if [ -d $wc_dir ]; then rm -rf $wc_dir; fi
+    ;;
+
+  *)
+    echo -e "$usage\nInvalid action: $action\n";
+    exit;
+
+esac
+
