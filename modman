@@ -1,6 +1,6 @@
 #!/bin/bash
 # Module Manager
-# Version 1.0 (Jan 30, 2010)
+# Version 1.0.1
 
 # System Requirements:
 # - bash
@@ -59,6 +59,9 @@ My_Module.xml          app/etc/modules/My_Module.xml
 
 # Import another modman module!
 @import                modules/Fooman_Speedster
+
+# Execute a command on the shell!
+@shell                 rm -rf ../../var/cache/*
 ---- End example modman file ----
 
 One modman file can import another modman file using @import and the root of the
@@ -192,6 +195,12 @@ create_links ()
       fi
     fi
 
+    # Run commands on the shell!
+    if [[ "$svn" == "@shell" ]]; then
+      echo $real | bash
+      continue
+    fi
+
     # Handle aliases that do not exist
     if ! [ -e $src ]; then
       if [ -L $dest ]; then
@@ -278,7 +287,6 @@ case "$action" in
   commit)
     require_wc
     cd $wc_dir
-    sed --in-place -e '/^$/d' $wc_desc
     svn commit $@
     ;;
 
