@@ -182,7 +182,7 @@ create_links ()
   while read svn real; do
     module_dir=`dirname $1`
     src=$module_dir/$svn
-    dest=$root/${real%/}
+    dest=`echo -n "$root/${real%/}" | tr -d '\r'`
 
     # Import other module definitions (which are typically imported via svn:externals)
     if [[ "$svn" == "@import" ]]; then
