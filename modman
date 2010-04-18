@@ -44,6 +44,9 @@ Supported actions: (all svn commands support additional arguments)
   info           show the module's working copy path and run svn info on working copy
   list           list the definitions in the modman file
 
+Standalone mode:
+  deploy         assumes files are in correct location and creates links for the module file
+
 The repository should contain a file called \"modman\" which defines which files
 go where relative to the directory where modman was initialized.
 
@@ -76,6 +79,11 @@ In this example, modules/Fooman_Speedster would contain it's own modman file whi
 contains definitions which are relative to the same root as the parent module it
 was imported from. Therefore, an @import has the exact same effect as running
 \"modman xxx checkout\" from the same project root.
+
+Standalone mode:
+The modman script can be used without svn by placing files in the proper location
+and running \"modman xxx deploy\". The root of the module must be located at
+<project_root>/.modman/<module_name>/ and it must contain a modman file.
 
 Author:
 Colin Mollenhour
@@ -394,6 +402,11 @@ case "$action" in
       echo "Failed to export module to $root"
     fi
     if [ -d $wc_dir ]; then rm -rf $wc_dir; fi
+    ;;
+
+  deploy)
+    require_wc
+    create_links $wc_desc && echo "$module has been deployed under $root"
     ;;
 
   *)
