@@ -1,6 +1,6 @@
 #!/bin/bash
 # Module Manager
-# Version 1.0.4
+# Version 1.0.5
 
 # System Requirements:
 # - bash
@@ -269,7 +269,7 @@ copy_over ()
   while read svn real; do
     module_dir=`dirname $1`
     src=$module_dir/$svn
-    dest=$root/${real%/}
+    dest=`echo -n "$root/${real%/}" | tr -d '\r'`
 
     # Handle @import case
     if [[ "$svn" == "@import" ]]; then
@@ -284,7 +284,14 @@ copy_over ()
 
     # Copy the files to their respective locations using hardlinks for efficiency
     if ! [ -e `dirname $dest` ]; then
-      mkdir --parents `dirname $dest`;
+      mkdir --parents `dirname $dest`
+    else
+      if [ "$FORCE" = "0" ]; then
+        echo -e "CONFLICT: $dest already exists.\nRun with --force to force removal of existing files."
+        return 1
+      else
+        rm -rf "$dest"
+      fi
     fi
     cp --recursive --link $src $dest || return 1
   done
@@ -426,7 +433,11 @@ case "$action" in
 
   deploy)
     require_wc
-    create_links $wc_desc && echo "$module has been deployed under $root"
+    if [ "$1" = "--copy" ]; then
+      copy_over $wc_desc && echo "$module has been deployed under $root with --copy enabled"
+    else
+      create_links $wc_desc && echo "$module has been deployed under $root"
+    fi
     ;;
 
   *)
