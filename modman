@@ -1,6 +1,6 @@
 #!/bin/bash
 # Module Manager
-# Version 1.0.5
+# Version 1.0.6
 
 # System Requirements:
 # - bash
@@ -206,11 +206,11 @@ require_wc ()
 
 create_links ()
 {
-  grep -v '^#' $1 | grep -v '^\s*$' | \
+  grep -v '^#' $1 | tr -d '\r' | grep -v '^\s*$' | \
   while read svn real; do
     module_dir=`dirname $1`
     src=$module_dir/$svn
-    dest=`echo -n "$root/${real%/}" | tr -d '\r'`
+    dest=$root/${real%/}
 
     # Import other module definitions (which are typically imported via svn:externals)
     if [[ "$svn" == "@import" ]]; then
@@ -241,7 +241,7 @@ create_links ()
     # Handle cases where files already exist at the destination
     if [ -e $dest ] && ! [ -L $dest ]; then
       if [ "$FORCE" == "0" ]; then
-        echo -e "CONFLICT: $real already exists and is not a link.\nRun with --force to force removal of existing files."
+        echo -e "CONFLICT: $real mapped by $svn already exists and is not a link.\nRun with --force to force removal of existing files."
         return 1
       else
         rm -rf $dest
