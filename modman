@@ -396,7 +396,7 @@ case "$action" in
     fi
     if
       svn checkout $@ $module &&
-      require_wc &&
+      require_wc && cd $wc_dir &&
       create_links $wc_desc
     then
       echo "Checkout of module $module complete"
