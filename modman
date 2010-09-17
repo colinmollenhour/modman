@@ -1,6 +1,6 @@
 #!/bin/bash
 # Module Manager
-# Version 1.0.6
+# Version 1.0.7
 
 # System Requirements:
 # - bash
@@ -31,6 +31,7 @@ Usage: $script <module> <action> [svn args]
 Supported global actions (no module specified):
   init           initialize the current directory as the modman root (no module name)
   update-all     update all modules that are currently checked out
+  repair         repair incorrect, missing or broken symlinks (no svn update)
 
 Supported actions: (all svn commands support additional arguments)
   checkout       checkout a new modman compatible module
@@ -142,61 +143,18 @@ while ! [ -d $root/.modman ]; do
   root=`pwd`
 done
 
-mm_dir=$root/.modman      # path to .modman
+mm=$root/.modman      # path to .modman
 
-# Handle "update-all" command
-if [ "$1" = "update-all" ]; then
-  if [ -n "$2" ]; then echo "Too many arguments to update-all command"; exit 1; fi
-  for module in `ls $mm_dir`; do
-    echo "Updating module: $module"
-    $0 $module update || exit 1
-  done
-  echo "Successfully updated all modules."
-  exit 0
-fi
-
-# Discover if modman is run from within a module directory
-cd $_pwd
-module=''
-while [ "$root" != "$(pwd)" ]; do
-  modpath=`pwd`
-  if [ "$mm_dir" = "$(dirname $modpath)" ]; then
-    module=$(basename $modpath)
-  fi
-  cd ..
-done
-
-# If no module discovered or valid module is specified on command line
-if [ -z "$module" ] || [ -d "$mm_dir/$1" ]; then
-  module=$1; shift          # module name is first argument
-fi
-action=$1; shift          # action is next argument
-
-if [ -z "$module" ]; then
-  echo -e "Not enough arguments (no module specified)" && exit 1
-fi
-if [ -z "$action" ]; then
-  echo -e "Not enough arguments (no action specified)" && exit 1
-fi
-
-if [ "$1" == "--force" ]; then
-  FORCE="1"; shift
-else
-  FORCE="0"
-fi
-
-cd $_pwd; #restore old root
-wc_dir=$mm_dir/$module    # working copy directory for module
-wc_desc=$wc_dir/modman    # path to modman structure descriptor file
-
+#############################################################
+# Check for existence of a module directory and modman file
 require_wc ()
 {
-  if ! [ -d $wc_dir ]; then
-    echo "ERROR: The '$module' module has not been checked out."; exit 1
+  if ! [ -d $mm/$1 ]; then
+    echo "ERROR: The '$1' module has not been checked out."; exit 1
   fi
-  if ! [ -r $wc_desc ]; then
-    if ! [ -r $wc_dir/.modman ]; then
-      echo "ERROR: The '$module' module does not contain a \"modman\" module description file."; exit 1
+  if ! [ -r $mm/$1/modman ]; then
+    if ! [ -r $mm/$1/.modman ]; then
+      echo "ERROR: The '$1' module does not contain a \"modman\" module description file."; exit 1
     else
       echo "The '.modman' file should be renamed to 'modman'. Rename the file and run svn update manually and then run modman update."; exit 1
     fi
@@ -204,6 +162,11 @@ require_wc ()
   return 0
 }
 
+################################################################################
+# Reads a modman file and does the following:
+#   Creates the symlinks as described
+#   Imports external modman files (@import)
+#   Runs shell commands (@shell)
 create_links ()
 {
   grep -v '^#' $1 | tr -d '\r' | grep -v '^\s*$' | \
@@ -225,7 +188,7 @@ create_links ()
 
     # Run commands on the shell!
     if [[ "$svn" == "@shell" ]]; then
-      echo $real | bash
+      cd $module_dir && echo $real | bash
       continue
     fi
 
@@ -263,6 +226,8 @@ create_links ()
   return 0
 }
 
+###########################################################################
+# Similar to create_links but creates hardlinks instead of using symlinks
 copy_over ()
 {
   grep -v '^#' $1 | grep -v '^\s*$' | \
@@ -298,35 +263,94 @@ copy_over ()
   return 0
 }
 
+###############################
+# Handle "update-all" command
+if [ "$1" = "update-all" ]; then
+  if [ -n "$2" ]; then echo "Too many arguments to update-all command"; exit 1; fi
+  for module in `ls $mm`; do
+    require_wc $module && echo "Updating module: $module"
+    svn update $mm/$module || exit 1
+    create_links $mm/$module/modman && echo "Update of $module complete."
+  done
+  find -L $root -type l -delete  # remove dead symlinks
+  echo "Successfully updated all modules."
+  exit 0
+
+###########################
+# Handle "repair" command
+elif [ "$1" = "repair" ]; then
+  mv $mm $root/.modman-repairing || (echo "Could not temporarily rename .modman directory"; exit 1)
+  find -L $root -type l -delete
+  mv $root/.modman-repairing $mm || (echo "Could not restor .modman directory"; exit 1)
+  for module in `ls $mm`; do
+    require_wc $module
+    create_links $mm/$module/modman && echo -e "Repaired $module.\n"
+  done
+  exit 0
+fi
+
+#############################################
+# Handle all other module-specific commands
+
+# Discover if modman is run from within a module directory
+cd $_pwd
+module=''
+while [ "$root" != "$(pwd)" ]; do
+  modpath=`pwd`
+  if [ "$mm" = "$(dirname $modpath)" ]; then
+    module=$(basename $modpath)
+  fi
+  cd ..
+done
+
+# If no module discovered or valid module is specified on command line
+if [ -z "$module" ] || [ -d "$mm/$1" ]; then
+  module=$1; shift          # module name is first argument
+fi
+action=$1; shift          # action is next argument
+
+[ -z "$module" ] || echo -e "Not enough arguments (no module specified)" && exit 1
+[ -z "$action" ] || echo -e "Not enough arguments (no action specified)" && exit 1
+
+if [ "$1" == "--force" ]; then
+  FORCE="1"; shift
+else
+  FORCE="0"
+fi
+
+cd $_pwd;                 # restore old root
+wc_dir=$mm/$module        # working copy directory for module
+wc_desc=$wc_dir/modman    # path to modman structure descriptor file
+
 case "$action" in
 
   status)
-    require_wc
+    require_wc $module
     cd $wc_dir
     svn status $@
     ;;
 
   diff)
-    require_wc
+    require_wc $module
     cd $wc_dir
     svn diff $@
     ;;
 
   info)
-    require_wc
+    require_wc $module
     cd $wc_dir
     echo "$wc_dir"
     svn info $@
     ;;
 
   commit)
-    require_wc
+    require_wc $module
     cd $wc_dir
     svn commit $@
     ;;
 
   update)
-    require_wc
+    require_wc $module
     cd $wc_dir
     cp modman .modman-old
     svn update $@ || (echo "failed to update working copy"; rm .modman-old; exit 1)
@@ -346,7 +370,7 @@ case "$action" in
     ;;
 
   add)
-    require_wc
+    require_wc $module
     svn=$1; shift
     real=$1; shift
     if [ -z $svn ]; then echo -e "Not enough arguments to \"add\".\n$usage"; exit 1; fi
@@ -372,7 +396,7 @@ case "$action" in
     ;;
 
   delete)
-    require_wc
+    require_wc $module
     cd $wc_dir
     svn=$1; shift
     if [ -z $svn ]; then echo -e "You must specify an alias to delete.\n$usage"; exit 1; fi
@@ -390,38 +414,38 @@ case "$action" in
     ;;
 
   checkout)
-    cd $mm_dir
+    cd $mm
     if [ -d $wc_dir ]; then
       echo "A module by that name has already been checked out"; exit 1
     fi
     if
       svn checkout $@ $module &&
-      require_wc && cd $wc_dir &&
+      require_wc $module && cd $wc_dir &&
       create_links $wc_desc
     then
       echo "Checkout of module $module complete"
-      # remove dead symlinks
-      find -L $root -type l -delete
     else
       if [ -d $wc_dir ]; then rm -rf $wc_dir; fi
       echo "Error checking out $module, operation cancelled."
     fi
+    # remove dead symlinks
+    find -L $root -type l -delete
     ;;
 
   list)
-    require_wc
+    require_wc $module
     echo "--Module Manager alias definitions for $module module:"
     cat $wc_desc
     ;;
 
   export)
-    cd $mm_dir
+    cd $mm
     if [ -d $wc_dir ]; then
       echo "You cannot export a module that has already been checked out"; exit 1
     fi
     if
       svn export $@ $module &&
-      require_wc &&
+      require_wc $module &&
       copy_over $wc_desc
     then
       echo "Exported $module to $root"
@@ -432,7 +456,7 @@ case "$action" in
     ;;
 
   deploy)
-    require_wc
+    require_wc $module
     if [ "$1" = "--copy" ]; then
       copy_over $wc_desc && echo "$module has been deployed under $root with --copy enabled"
     else
