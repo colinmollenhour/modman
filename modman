@@ -299,6 +299,7 @@ while [ "$root" != "$(pwd)" ]; do
   modpath=`pwd`
   if [ "$mm" = "$(dirname $modpath)" ]; then
     module=$(basename $modpath)
+    break
   fi
   cd ..
 done
@@ -309,8 +310,8 @@ if [ -z "$module" ] || [ -d "$mm/$1" ]; then
 fi
 action=$1; shift          # action is next argument
 
-[ -z "$module" ] || echo -e "Not enough arguments (no module specified)" && exit 1
-[ -z "$action" ] || echo -e "Not enough arguments (no action specified)" && exit 1
+if [ -z "$module" ]; then echo "Not enough arguments (no module specified)"; exit 1; fi
+if [ -z "$action" ]; then echo "Not enough arguments (no action specified)"; exit 1; fi
 
 if [ "$1" == "--force" ]; then
   FORCE="1"; shift
