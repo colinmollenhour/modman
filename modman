@@ -415,6 +415,7 @@ case "$action" in
     ;;
 
   checkout)
+    FORCE="1"
     cd $mm
     if [ -d $wc_dir ]; then
       echo "A module by that name has already been checked out"; exit 1
