@@ -284,6 +284,7 @@ elif [ "$1" = "repair" ]; then
   find -L $root -type l -delete
   mv $root/.modman-repairing $mm || (echo "Could not restor .modman directory"; exit 1)
   for module in `ls $mm`; do
+    test -d $mm/$module || continue;
     require_wc $module
     create_links $mm/$module/modman && echo -e "Repaired $module.\n"
   done
