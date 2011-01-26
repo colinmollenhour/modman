@@ -1,6 +1,6 @@
 #!/bin/bash
 # Module Manager
-# Version 1.0.8
+# Version 1.0.9
 
 # System Requirements:
 # - bash
@@ -60,6 +60,8 @@ code                   app/code/local/My/Module/
 design                 app/design/frontend/default/default/mymodule/
 locale/My_Module.xml   app/locale/en_US/My_Module.xml
 My_Module.xml          app/etc/modules/My_Module.xml
+skin/css/*             skin/frontend/base/default/css/
+skin/js/*              skin/frontend/base/default/js/
 
 # Import another modman module!
 @import                modules/Fooman_Speedster
@@ -191,6 +193,36 @@ create_links ()
       cd $module_dir && echo $real | bash
       continue
     fi
+
+    # Handle globbing
+    if [[ `ls $src | wc -l` -gt 1 ]]; then
+      for _src in `ls $src`; do
+        _dest="$dest/${_src##*/}"
+
+        # Handle cases where files already exist at the destination
+        if [ -e $_dest ] && ! [ -L $_dest ]; then
+          if [ "$FORCE" == "0" ]; then
+            echo -e "CONFLICT: $_dest mapped by $svn already exists and is not a link.\nRun with --force to force removal of existing files."
+            return 1
+          else
+            rm -rf $_dest
+          fi
+        fi
+
+        # Create links if they do not already exist
+        if ! [ -e $_dest ]; then
+          mkdir -p ${_dest%/*}
+          if ln -s $_src $_dest
+          then
+            echo "Created link for new module directive: $svn $real/${_src##*/}"
+          else
+            echo -e "Unable to create softlink for rule: $svn $real/${_src##*/}"
+            return 1
+          fi
+        fi
+      done
+      continue
+    fi # end Handle globbing
 
     # Handle aliases that do not exist
     if ! [ -e $src ]; then
