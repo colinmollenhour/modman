@@ -196,7 +196,7 @@ create_links ()
 
     # Handle globbing
     if ! [ -e "$src" ] && [[ `ls $src | wc -l` -gt 0 ]]; then
-      for _src in `ls $src`; do
+      for _src in $src; do
         _dest="$dest/${_src##*/}"
 
         # Handle cases where files already exist at the destination
