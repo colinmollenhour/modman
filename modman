@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname
 
-version="1.1.0"
+version="1.1.1"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -176,6 +176,14 @@ require_wc ()
     fi
   fi
   return 0
+}
+
+###############################################################
+# Removes dead symlinks
+remove_dead_links ()
+{
+  # Use -exec rm instead of -delete to avoid bug in Darwin. -Thanks Vinai!
+  find -L $1 -type l -exec rm {} \;
 }
 
 ################################################################################
@@ -337,7 +345,7 @@ elif [ "$1" = "update-all" ]; then
     fi
     create_links $mm/$module/modman && echo "Update of $module complete."
   done
-  find -L $root -type l -delete  # remove dead symlinks
+  remove_dead_links $root
   echo "Successfully updated all modules."
   exit 0
 
@@ -345,7 +353,7 @@ elif [ "$1" = "update-all" ]; then
 # Handle "repair" command
 elif [ "$1" = "repair" ]; then
   mv $mm $root/.modman-repairing || (echo "Could not temporarily rename .modman directory"; exit 1)
-  find -L $root -type l -delete
+  remove_dead_links $root
   mv $root/.modman-repairing $mm || (echo "Could not restor .modman directory"; exit 1)
   for module in `ls $mm`; do
     test -d $mm/$module || continue;
@@ -412,8 +420,7 @@ case "$action" in
     rm .modman-old
 
     create_links $wc_desc && echo "Update of module $module complete."
-    # remove dead symlinks
-    find -L $root -type l -delete
+    remove_dead_links $root
     ;;
 
   checkout|clone)
@@ -439,9 +446,7 @@ case "$action" in
       if [ -d $wc_dir ]; then rm -rf $wc_dir; fi
       echo "Error checking out $module, operation cancelled."
     fi
-
-    # remove dead symlinks
-    find -L $root -type l -delete
+    remove_dead_links $root
     ;;
 
   deploy)
