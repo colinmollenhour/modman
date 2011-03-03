@@ -19,9 +19,9 @@
 #    - bash
 #    - filesystem and project or web server must support symlinks (except for deploy --copy)
 #    - The following common utilities must be locatable in your $PATH
-#       grep (POSIX), find, ln, cp, basename, dirname
+#       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.1.1"
+version="1.1.2"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -110,28 +110,6 @@ http://colin.mollenhour.com/
 colin@mollenhour.com
 "
 
-# bash implementation of realpath / readlink -f
-# arg1 - filename
-realpath()
-{
-	fname=${1%/} # strips trailing '/'
-	while [ -L "$fname" ]; do
-	 oldfname="$fname"
-	 fname="$(command ls -l $fname)"
-	 fname="${fname#*> }"
-	 if [ "$fname" = . ] ; then
-	 fname="$(dirname $oldfname)"
-	 elif echo $fname | grep -vq '^/' - ; then
-	 fname="$(dirname $oldfname)/$fname"
-	 fi
-	done
-	pushd $(dirname $fname) > /dev/null
-	fname=$(pwd -P)/$(basename $fname)
-	popd > /dev/null
-	echo $fname
-}
-
-
 ###########################
 # Handle "init" command, simply create .modman directory
 if [ "$1" = "init" ]; then
@@ -151,11 +129,11 @@ fi
 
 # Find the .modman directory and store parent path in $root
 mm_not_found="Module Manager directory not found.\nRun \"$script init\" in the root of the project with which you would like to use Module Manager."
-_pwd=$(realpath `pwd`)
+_pwd=$(readlink -f `pwd`)
 root=$_pwd
 while ! [ -d $root/.modman ]; do
   if [ "$root" = "/" ]; then echo -e $mm_not_found && exit 1; fi
-  cd .. || (echo -e "ERROR: Could not traverse up from $root\n$mm_not_found" && exit 1)
+  cd .. || { echo -e "ERROR: Could not traverse up from $root\n$mm_not_found" && exit 1; }
   root=`pwd`
 done
 
@@ -166,14 +144,10 @@ mm=$root/.modman      # path to .modman
 require_wc ()
 {
   if ! [ -d $mm/$1 ]; then
-    echo "ERROR: The '$1' module has not been checked out."; exit 1
+    echo "ERROR: $1 has not been checked out."; exit 1
   fi
   if ! [ -r $mm/$1/modman ]; then
-    if ! [ -r $mm/$1/.modman ]; then
-      echo "ERROR: The '$1' module does not contain a \"modman\" module description file."; exit 1
-    else
-      echo "The '.modman' file should be renamed to 'modman'. Rename the file and run svn update manually and then run modman update."; exit 1
-    fi
+    echo "ERROR: $1 does not contain a \"modman\" module description file."; exit 1
   fi
   return 0
 }
@@ -200,7 +174,7 @@ create_links ()
     dest=$root/${real%/}
 
     # Import other module definitions (which are typically imported via svn:externals)
-    if [[ "$svn" == "@import" ]]; then
+    if [ "$svn" == "@import" ]; then
       import=$module_dir/$real/modman
       if ! [ -r $import ]; then
         echo "Failed \"@import $real\", $import not found."; return 1
@@ -211,7 +185,7 @@ create_links ()
     fi
 
     # Run commands on the shell!
-    if [[ "$svn" == "@shell" ]]; then
+    if [ "$svn" == "@shell" ]; then
       cd $module_dir
       export PROJECT=$root
       export MODULE=$module_dir
@@ -220,17 +194,18 @@ create_links ()
     fi
 
     # Handle globbing
-    if ! [ -e "$src" ] && [[ `ls $src | wc -l` -gt 0 ]]; then
+    if ! [ -e "$src" ] && [ `ls $src 2> /dev/null | wc -l` -gt 0 ]; then
       for _src in $src; do
         _dest="$dest/${_src##*/}"
 
-        # Handle cases where files already exist at the destination
-        if [ -e $_dest ] && ! [ -L $_dest ]; then
-          if [ "$FORCE" == "0" ]; then
+        # Handle cases where files already exist at the destination or link does not match expected destination
+        if [ -e $_dest ]; then
+          if ! [ -L $_dest ] && [ $FORCE -eq 0 ]; then
             echo -e "CONFLICT: $_dest mapped by $svn already exists and is not a link.\nRun with --force to force removal of existing files."
             return 1
-          else
-            rm -rf $_dest
+          elif [ ! -L $_dest -o $_src != $(readlink $_dest) ]; then
+            echo "Removing conflicting `stat -c %F $_dest`: $_dest"
+            rm -rf $_dest || return 1
           fi
         fi
 
@@ -260,7 +235,7 @@ create_links ()
 
     # Handle cases where files already exist at the destination
     if [ -e $dest ] && ! [ -L $dest ]; then
-      if [ "$FORCE" == "0" ]; then
+      if [ $FORCE -eq 0 ]; then
         echo -e "CONFLICT: $real mapped by $svn already exists and is not a link.\nRun with --force to force removal of existing files."
         return 1
       else
@@ -308,7 +283,7 @@ copy_over ()
     if ! [ -e `dirname $dest` ]; then
       mkdir --parents `dirname $dest`
     else
-      if [ "$FORCE" = "0" ]; then
+      if [ $FORCE -eq 0 ]; then
         echo -e "CONFLICT: $dest already exists.\nRun with --force to force removal of existing files."
         return 1
       else
@@ -336,7 +311,7 @@ elif [ "$1" = "update-all" ]; then
   if [ -n "$2" ]; then echo "Too many arguments to update-all command"; exit 1; fi
   for module in `ls $mm`; do
     test -d $mm/$module || continue;
-    require_wc $module && echo "Updating module: $module"
+    require_wc $module && echo "Updating $module"
     cd $mm/$module
     if [ -d .svn ]; then
       svn update
@@ -352,13 +327,12 @@ elif [ "$1" = "update-all" ]; then
 ###########################
 # Handle "repair" command
 elif [ "$1" = "repair" ]; then
-  mv $mm $root/.modman-repairing || (echo "Could not temporarily rename .modman directory"; exit 1)
+  mv $mm $root/.modman-repairing || { echo "Could not temporarily rename .modman directory"; exit 1; }
   remove_dead_links $root
-  mv $root/.modman-repairing $mm || (echo "Could not restor .modman directory"; exit 1)
+  mv $root/.modman-repairing $mm || { echo "Could not restore .modman directory"; exit 1; }
   for module in `ls $mm`; do
     test -d $mm/$module || continue;
-    require_wc $module
-    create_links $mm/$module/modman && echo -e "Repaired $module.\n"
+    require_wc $module && create_links $mm/$module/modman && echo -e "Repaired $module.\n"
   done
   exit 0
 fi
@@ -384,13 +358,13 @@ if [ -z "$module" ] || [ -d "$mm/$1" ]; then
 fi
 action=$1; shift          # action is next argument
 
-if [ -z "$module" ]; then echo "Not enough arguments (no module specified)"; exit 1; fi
-if [ -z "$action" ]; then echo "Not enough arguments (no action specified)"; exit 1; fi
+[ -z "$module" ] && { echo "Not enough arguments (no module specified)"; exit 1; }
+[ -z "$action" ] && { echo "Not enough arguments (no action specified)"; exit 1; }
 
 if [ "$1" == "--force" ]; then
-  FORCE="1"; shift
+  FORCE=1; shift
 else
-  FORCE="0"
+  FORCE=0
 fi
 
 cd $_pwd;                 # restore old root
@@ -402,29 +376,19 @@ case "$action" in
   update)
     require_wc $module
     cd $wc_dir
-    cp modman .modman-old
     if [ -d .svn ]; then
       svn update $@
     elif [ -d .git ]; then
       git pull $@ && git submodule update --init
     fi
-    [ $? ] || (echo "failed to update working copy"; rm .modman-old; exit 1)
+    [ $? ] || { echo "failed to update working copy"; rm .modman-old; exit 1; }
 
-    #remove any links that were removed from modman file
-    grep -F -vxf modman .modman-old | grep -v '^[#@]' | grep -v '^\s*$' | \
-    while read svn real; do
-      if [ -L $root/$real ]; then
-        rm $root/${real%/}
-      fi
-    done
-    rm .modman-old
-
-    create_links $wc_desc && echo "Update of module $module complete."
+    create_links $wc_desc && echo "Update of $module complete."
     remove_dead_links $root
     ;;
 
   checkout|clone)
-    FORCE="1"
+    FORCE=1
     cd $mm
     if [ -d $wc_dir ]; then
       echo "A module by that name has already been checked out"; exit 1
@@ -441,7 +405,7 @@ case "$action" in
       require_wc $module && cd $wc_dir &&
       create_links $wc_desc
     then
-      echo "Checkout of module $module complete"
+      echo "Checkout of $module complete"
     else
       if [ -d $wc_dir ]; then rm -rf $wc_dir; fi
       echo "Error checking out $module, operation cancelled."
