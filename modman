@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.1.2"
+version="1.1.3"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -303,6 +303,19 @@ if [ "$1" = "list" ]; then
     test -d $mm/$module || continue;
     require_wc $module && echo "$module"
   done  
+  exit 0
+
+###############################
+# Handle "deploy-all" command
+elif [ "$1" = "deploy-all" ]; then
+  if [ -n "$2" ]; then echo "Too many arguments to deploy-all command"; exit 1; fi
+  for module in `ls $mm`; do
+    test -d $mm/$module || continue;
+    require_wc $module && echo "Deploying $module"
+    create_links $mm/$module/modman && echo "Deployment of $module complete."
+  done
+  remove_dead_links $root
+  echo "Successfully deployed all modules."
   exit 0
 
 ###############################
