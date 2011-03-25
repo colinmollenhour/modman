@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.1.4"
+version="1.1.5"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -129,7 +129,7 @@ fi
 
 # Find the .modman directory and store parent path in $root
 mm_not_found="Module Manager directory not found.\nRun \"$script init\" in the root of the project with which you would like to use Module Manager."
-_pwd=$(readlink -f `pwd`)
+_pwd=$(pwd -P)
 root=$_pwd
 while ! [ -d $root/.modman ]; do
   if [ "$root" = "/" ]; then echo -e $mm_not_found && exit 1; fi
@@ -299,7 +299,7 @@ copy_over ()
 ###############################
 # Handle "list" command
 if [ "$1" = "list" ]; then
-  if [ -n "$2" ]; then echo "Too many arguments to update-all command"; exit 1; fi
+  if [ -n "$2" ]; then echo "Too many arguments to list command."; exit 1; fi
   for module in `ls $mm`; do
     test -d $mm/$module || continue;
     require_wc $module && echo "$module"
@@ -309,7 +309,7 @@ if [ "$1" = "list" ]; then
 ###############################
 # Handle "deploy-all" command
 elif [ "$1" = "deploy-all" ]; then
-  if [ -n "$2" ]; then echo "Too many arguments to deploy-all command"; exit 1; fi
+  if [ -n "$2" ]; then echo "Too many arguments to deploy-all command."; exit 1; fi
   for module in `ls $mm`; do
     test -d $mm/$module || continue;
     require_wc $module && echo "Deploying $module"
@@ -322,7 +322,7 @@ elif [ "$1" = "deploy-all" ]; then
 ###############################
 # Handle "update-all" command
 elif [ "$1" = "update-all" ]; then
-  if [ -n "$2" ]; then echo "Too many arguments to update-all command"; exit 1; fi
+  if [ -n "$2" ]; then echo "Too many arguments to update-all command."; exit 1; fi
   for module in `ls $mm`; do
     test -d $mm/$module || continue;
     require_wc $module && echo "Updating $module"
