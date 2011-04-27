@@ -204,7 +204,7 @@ create_links ()
           if ! [ -L $_dest ] && [ $FORCE -eq 0 ]; then
             echo -e "CONFLICT: $_dest mapped by $svn already exists and is not a link.\nRun with --force to force removal of existing files."
             return 1
-          elif [ ! -L $_dest -o $_src != $(readlink $_dest) ]; then
+          elif ! [ -L $_dest ] || [ $_src != $(readlink $_dest) ]; then
             echo "Removing conflicting `stat -c %F $_dest`: $_dest"
             rm -rf $_dest || return 1
           fi
