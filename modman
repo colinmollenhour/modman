@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.1.6"
+version="1.1.7"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -177,7 +177,7 @@ create_links ()
 
     # Import other module definitions (which are typically imported via svn:externals)
     if [ "$svn" == "@import" ]; then
-      import=$module_dir/$real/modman
+      import=$module_dir/${real%/}/modman
       if ! [ -r $import ]; then
         echo "Failed \"@import $real\", $import not found."; return 1
       else
@@ -217,9 +217,9 @@ create_links ()
           mkdir -p ${_dest%/*}
           if ln -s $_src $_dest
           then
-            echo "Created link: $svn $real/${_src##*/}"
+            printf " Applied: %-30s  %s\n" "$svn" "${real%/}/${_src##*/}"
           else
-            echo -e "Unable to create softlink for rule: $svn $real/${_src##*/}"
+            echo "Unable to create softlink for rule: $svn ${real%/}/${_src##*/}"
             return 1
           fi
         fi
@@ -251,9 +251,9 @@ create_links ()
       mkdir -p ${dest%/*}
       if ln -s $src $dest
       then
-        echo "Created link: $svn $real"
+        printf " Applied: %-30s  %s\n" "$svn" "$real"
       else
-        echo -e "Unable to create softlink for rule: $svn $real"
+        echo "Unable to create softlink for rule: $svn $real"
         return 1
       fi
     fi
@@ -316,7 +316,7 @@ elif [ "$1" = "deploy-all" ]; then
   for module in `ls $mm`; do
     test -d $mm/$module || continue;
     require_wc $module && echo "Deploying $module"
-    create_links $mm/$module/modman && echo "Deployment of $module complete."
+    create_links $mm/$module/modman && echo -e "Deployment of $module complete.\n"
   done
   remove_dead_links $root
   echo "Successfully deployed all modules."
