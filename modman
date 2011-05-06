@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.1.5"
+version="1.1.6"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -31,6 +31,7 @@ Global Commands: $script <command>
   init           initialize the current directory as the modman root
   list           list all valid modules that are currently checked out
   update-all     update all modules that are currently checked out
+  deploy-all     deploy all modules (no VCS interaction)
   repair         rebuild all modman-created symlinks (no updates performed)
   --version      display the modman script's version
 
@@ -138,6 +139,7 @@ while ! [ -d $root/.modman ]; do
 done
 
 mm=$root/.modman      # path to .modman
+FORCE=0               # --force option off by default
 
 #############################################################
 # Check for existence of a module directory and modman file
@@ -309,6 +311,7 @@ if [ "$1" = "list" ]; then
 ###############################
 # Handle "deploy-all" command
 elif [ "$1" = "deploy-all" ]; then
+  if [ "$2" == "--force" ]; then FORCE=1; shift; fi
   if [ -n "$2" ]; then echo "Too many arguments to deploy-all command."; exit 1; fi
   for module in `ls $mm`; do
     test -d $mm/$module || continue;
@@ -322,6 +325,7 @@ elif [ "$1" = "deploy-all" ]; then
 ###############################
 # Handle "update-all" command
 elif [ "$1" = "update-all" ]; then
+  if [ "$2" == "--force" ]; then FORCE=1; shift; fi
   if [ -n "$2" ]; then echo "Too many arguments to update-all command."; exit 1; fi
   for module in `ls $mm`; do
     test -d $mm/$module || continue;
@@ -341,6 +345,7 @@ elif [ "$1" = "update-all" ]; then
 ###########################
 # Handle "repair" command
 elif [ "$1" = "repair" ]; then
+  if [ "$2" == "--force" ]; then FORCE=1; shift; fi
   mv $mm $root/.modman-repairing || { echo "Could not temporarily rename .modman directory"; exit 1; }
   remove_dead_links $root
   mv $root/.modman-repairing $mm || { echo "Could not restore .modman directory"; exit 1; }
@@ -377,8 +382,6 @@ action=$1; shift          # action is next argument
 
 if [ "$1" == "--force" ]; then
   FORCE=1; shift
-else
-  FORCE=0
 fi
 
 cd $_pwd;                 # restore old root
