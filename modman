@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.1.7"
+version="1.2"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -169,8 +169,10 @@ remove_dead_links ()
 #   Runs shell commands (@shell)
 create_links ()
 {
-  grep -v '^#' $1 | tr -d '\r' | grep -v '^\s*$' | \
-  while read svn real; do
+  # Use a new file descriptor when called recursively
+  FD=$((FD+1))
+  eval "exec $FD< <(grep -v '^#' $1 | tr -d '\r' | grep -v '^\s*$')"
+  while read -u$FD svn real; do
     module_dir=`dirname $1`
     src=$module_dir/$svn
     dest=$root/${real%/}
@@ -191,7 +193,10 @@ create_links ()
       cd $module_dir
       export PROJECT=$root
       export MODULE=$module_dir
-      echo $real | bash
+      shell_tmp=$(mktemp $mm/.tmp.XXXXXXX)
+      echo $real > $shell_tmp
+      bash $shell_tmp
+      rm -f $shell_tmp
       continue
     fi
 
@@ -258,8 +263,14 @@ create_links ()
       fi
     fi
   done
+
+  # Close file descriptor and decrement counter
+  eval "exec $FD<&-"
+  FD=$((FD-1))
+
   return 0
 }
+FD=3  # Emulate a stack for file descriptors starting at 3
 
 ###########################################################################
 # Similar to create_links but creates hardlinks instead of using symlinks
