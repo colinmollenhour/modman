@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.2.1"
+version="1.2.2"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -185,11 +185,28 @@ remove_dead_links ()
 #   Runs shell commands (@shell)
 create_links ()
 {
+  file=$1
+
   # Use a new file descriptor when called recursively
   FD=$((FD+1))
-  eval "exec $FD< <(grep -v '^#' $1 | tr -d '\r' | grep -v '^\s*$')"
-  while read -u$FD svn real; do
-    module_dir=`dirname $1`
+  eval "exec $FD< <(grep -nv '^#' $file | tr -d '\r' | grep -Ev '^[0-9]+:\s*$')"
+  while read -u$FD line; do
+
+    # Split <linenum>:<svn> <real>
+    OLDIFS="$IFS"
+    IFS="$IFS:"
+    set - $line
+    IFS="$OLDIFS"
+    svn="$2"
+    real="$3"
+
+    # Sanity check for empty data
+    if [ -z "$svn" -o -z "$real" ]; then
+      echo "ERROR: Malformed modman file in $file on line $line"
+      return 1
+    fi
+
+    module_dir=$(dirname $file)
     src=$module_dir/$svn
     dest=$root/${real%/}
 
