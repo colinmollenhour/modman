@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.2.2"
+version="1.2.3"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -115,7 +115,7 @@ colin@mollenhour.com
 # Handle "init" command, simply create .modman directory
 if [ "$1" = "init" ]; then
   basedir=$2
-  [[ -n "$basedir" && -d "$basedir" ]] || { echo "$basedir is not a directory."; exit 1; }
+  [[ -n "$basedir" && ! -d "$basedir" ]] && { echo "$basedir is not a directory."; exit 1; }
   mkdir .modman || { echo "Could not create .modman directory" && exit 1; }
   if [ -n "$basedir" ]; then
     echo "$basedir" > .modman/.basedir
