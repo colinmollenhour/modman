@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.2.3"
+version="1.2.4"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -195,10 +195,8 @@ create_links ()
     # Split <linenum>:<svn> <real>
     OLDIFS="$IFS"
     IFS="$IFS:"
-    set - $line
+    read linenum svn real <<< $line
     IFS="$OLDIFS"
-    svn="$2"
-    real="$3"
 
     # Sanity check for empty data
     if [ -z "$svn" -o -z "$real" ]; then
