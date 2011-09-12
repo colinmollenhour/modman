@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.2.4"
+version="1.2.5"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -405,7 +405,7 @@ fi
 # Discover if modman is run from within a module directory
 cd $_pwd
 module=''
-while [ "$(dirname $mm)" != "$(pwd)" && "$(pwd)" != "/" ]; do
+while [ "$(dirname $mm)" != "$(pwd)" ] && [ "$(pwd)" != "/" ]; do
   modpath=`pwd`
   if [ "$mm" = "$(dirname $modpath)" ]; then
     module=$(basename $modpath)
