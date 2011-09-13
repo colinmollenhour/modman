@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.2.6"
+version="1.2.7"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -145,6 +145,7 @@ while ! [ -d $root/.modman ]; do
   root=$(pwd)
 done
 
+mmroot=$root          # parent of .modman directory 
 mm=$root/.modman      # path to .modman
 FORCE=0               # --force option off by default
 
@@ -186,18 +187,20 @@ remove_dead_links ()
 create_links ()
 {
   # Use a new file descriptor when called recursively
+  # while loop should not read from stdin or else @shell scripts cannot get stdin
   FD=$((FD+1))
-  eval "exec $FD< <(grep -nv '^#' $1 | tr -d '\r' | grep -Ev '^[0-9]+:\s*$')"
+  eval "exec $FD< <(grep -v '^#' $1 | tr -d '\r' | grep -v '^\s*$')"
   while read -u$FD line; do
     module_dir=$(dirname $1)
+    relpath=${1:$((${#mmroot}+1))}
 
-    # Split <linenum>:<target> <real>
+    # Split <target> <real>
     read target real <<< $line
-    target=${target#*:}
 
     # Sanity check for empty data
     if [ -z "$target" -o -z "$real" ]; then
-      echo "ERROR: Malformed modman file in $1 on line $line"
+      echo "ERROR: Invalid input in modman file ($relpath):"
+      echo "  $(tput bold)$line$(tput sgr0)"
       return 1
     fi
 
@@ -205,7 +208,10 @@ create_links ()
     if [ "$target" == "@import" ]; then
       import=$module_dir/${real%/}/modman
       if ! [ -r $import ]; then
-        echo "Failed \"@import $real\", $import not found."; return 1
+        relimport=${import:$((${#mmroot}+1))}
+        echo "ERROR: modman file not found ($relimport):"
+        echo "  $(tput bold)$line$(tput sgr0)"
+        return 1
       else
         create_links $import || return 1
         continue
@@ -213,6 +219,7 @@ create_links ()
     fi
 
     # Run commands on the shell!
+    # temporary file is workaround so that script can receive stdin
     if [ "$target" == "@shell" ]; then
       cd $module_dir
       export PROJECT=$root
@@ -237,7 +244,8 @@ create_links ()
         # Handle cases where files already exist at the destination or link does not match expected destination
         if [ -e $_dest ]; then
           if ! [ -L $_dest ] && [ $FORCE -eq 0 ]; then
-            echo -e "CONFLICT: $_dest mapped by $target already exists and is not a link.\nRun with --force to force removal of existing files."
+            echo -e "CONFLICT: $_dest mapped by $target already exists and is not a link.\nRun with $(tput bold)--force$(tput sgr0) to force removal of existing files."
+            echo "  $(tput bold)$line$(tput sgr0)"
             return 1
           elif ! [ -L $_dest ] || [ $_src != $(readlink $_dest) ]; then
             echo "Removing conflicting `stat -c %F $_dest`: $_dest"
@@ -252,7 +260,8 @@ create_links ()
           then
             printf " Applied: %-30s  %s\n" "$target" "${real%/}/${_src##*/}"
           else
-            echo "Unable to create softlink for rule: $target ${real%/}/${_src##*/}"
+            echo "ERROR: Unable to create symlink ($_dest):"
+            echo "  $(tput bold)$line$(tput sgr0)"
             return 1
           fi
         fi
@@ -265,14 +274,16 @@ create_links ()
       if [ -L $dest ]; then
         rm $dest && echo "Removed bad link to $real"
       fi
-      echo "WARNING: Alias described in \"modman\" does not exist in working copy: $target"
+      echo "WARNING: Symlink target does not exist ($relpath):"
+      echo "  $(tput bold)$line$(tput sgr0)"
       continue
     fi
 
     # Handle cases where files already exist at the destination
     if [ -e $dest ] && ! [ -L $dest ]; then
       if [ $FORCE -eq 0 ]; then
-        echo -e "CONFLICT: $real mapped by $target already exists and is not a link.\nRun with --force to force removal of existing files."
+        echo -e "CONFLICT: $real mapped by $target already exists and is not a link.\nRun with $(tput bold)--force$(tput sgr0) to force removal of existing files."
+        echo "  $(tput bold)$line$(tput sgr0)"
         return 1
       else
         rm -rf $dest
@@ -286,7 +297,8 @@ create_links ()
       then
         printf " Applied: %-30s  %s\n" "$target" "$real"
       else
-        echo "Unable to create softlink for rule: $target $real"
+        echo "ERROR: Unable to create symlink ($dest):"
+        echo "  $(tput bold)$line$(tput sgr0)"
         return 1
       fi
     fi
@@ -352,13 +364,20 @@ if [ "$1" = "list" ]; then
 elif [ "$1" = "deploy-all" ]; then
   if [ "$2" == "--force" ]; then FORCE=1; shift; fi
   if [ -n "$2" ]; then echo "Too many arguments to deploy-all command."; exit 1; fi
+  errors=0
   for module in `ls $mm`; do
     test -d $mm/$module || continue;
-    require_wc $module && echo "Deploying $module to $root"
-    create_links $mm/$module/modman && echo -e "Deployment of $module complete.\n"
+    require_wc $module
+    echo "Deploying $module to $root"
+    if create_links $mm/$module/modman; then
+      echo -e "Deployment of $module complete.\n"
+    else
+      echo -e "$(tput bold)Error occurred while deploying $module.$(tput sgr0)\n"
+      errors=$((errors+1))
+    fi
   done
   remove_dead_links $root
-  echo "Successfully deployed all modules."
+  echo "Deployed all modules with $errors errors."
   exit 0
 
 ###############################
@@ -366,19 +385,26 @@ elif [ "$1" = "deploy-all" ]; then
 elif [ "$1" = "update-all" ]; then
   if [ "$2" == "--force" ]; then FORCE=1; shift; fi
   if [ -n "$2" ]; then echo "Too many arguments to update-all command."; exit 1; fi
+  errors=0
   for module in `ls $mm`; do
     test -d $mm/$module || continue;
-    require_wc $module && echo "Updating $module"
+    require_wc $module
+    echo "Updating $module"
     cd $mm/$module
     if [ -d .svn ]; then
       svn update
     elif [ -d .git ]; then
       git pull && git submodule update --init
     fi
-    create_links $mm/$module/modman && echo "Update of $module complete."
+    if [ $? ] && create_links $mm/$module/modman; then
+      echo -e "Update of $module complete.\n"
+    else
+      echo -e "$(tput bold)Error occurred while updating or deploying $module.$(tput sgr0)\n"
+      errors=$((errors+1))
+    fi
   done
   remove_dead_links $root
-  echo "Successfully updated all modules."
+  echo "Updated all modules with $errors errors."
   exit 0
 
 ###########################
