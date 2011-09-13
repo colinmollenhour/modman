@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.2.5"
+version="1.2.6"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -185,31 +185,24 @@ remove_dead_links ()
 #   Runs shell commands (@shell)
 create_links ()
 {
-  file=$1
-
   # Use a new file descriptor when called recursively
   FD=$((FD+1))
-  eval "exec $FD< <(grep -nv '^#' $file | tr -d '\r' | grep -Ev '^[0-9]+:\s*$')"
+  eval "exec $FD< <(grep -nv '^#' $1 | tr -d '\r' | grep -Ev '^[0-9]+:\s*$')"
   while read -u$FD line; do
+    module_dir=$(dirname $1)
 
-    # Split <linenum>:<svn> <real>
-    OLDIFS="$IFS"
-    IFS="$IFS:"
-    read linenum svn real <<< $line
-    IFS="$OLDIFS"
+    # Split <linenum>:<target> <real>
+    read target real <<< $line
+    target=${target#*:}
 
     # Sanity check for empty data
-    if [ -z "$svn" -o -z "$real" ]; then
-      echo "ERROR: Malformed modman file in $file on line $line"
+    if [ -z "$target" -o -z "$real" ]; then
+      echo "ERROR: Malformed modman file in $1 on line $line"
       return 1
     fi
 
-    module_dir=$(dirname $file)
-    src=$module_dir/$svn
-    dest=$root/${real%/}
-
-    # Import other module definitions (which are typically imported via svn:externals)
-    if [ "$svn" == "@import" ]; then
+    # Import other module definitions (e.g. git submodules, svn:externals, etc..)
+    if [ "$target" == "@import" ]; then
       import=$module_dir/${real%/}/modman
       if ! [ -r $import ]; then
         echo "Failed \"@import $real\", $import not found."; return 1
@@ -220,7 +213,7 @@ create_links ()
     fi
 
     # Run commands on the shell!
-    if [ "$svn" == "@shell" ]; then
+    if [ "$target" == "@shell" ]; then
       cd $module_dir
       export PROJECT=$root
       export MODULE=$module_dir
@@ -231,6 +224,10 @@ create_links ()
       continue
     fi
 
+    # Create symlink to target
+    src=$module_dir/$target
+    dest=$root/${real%/}
+
     # Handle globbing (extended globbing enabled)
     shopt -s extglob
     if ! [ -e "$src" ] && [ `ls $src 2> /dev/null | wc -l` -gt 0 ]; then
@@ -240,7 +237,7 @@ create_links ()
         # Handle cases where files already exist at the destination or link does not match expected destination
         if [ -e $_dest ]; then
           if ! [ -L $_dest ] && [ $FORCE -eq 0 ]; then
-            echo -e "CONFLICT: $_dest mapped by $svn already exists and is not a link.\nRun with --force to force removal of existing files."
+            echo -e "CONFLICT: $_dest mapped by $target already exists and is not a link.\nRun with --force to force removal of existing files."
             return 1
           elif ! [ -L $_dest ] || [ $_src != $(readlink $_dest) ]; then
             echo "Removing conflicting `stat -c %F $_dest`: $_dest"
@@ -253,9 +250,9 @@ create_links ()
           mkdir -p ${_dest%/*}
           if ln -s $_src $_dest
           then
-            printf " Applied: %-30s  %s\n" "$svn" "${real%/}/${_src##*/}"
+            printf " Applied: %-30s  %s\n" "$target" "${real%/}/${_src##*/}"
           else
-            echo "Unable to create softlink for rule: $svn ${real%/}/${_src##*/}"
+            echo "Unable to create softlink for rule: $target ${real%/}/${_src##*/}"
             return 1
           fi
         fi
@@ -268,14 +265,14 @@ create_links ()
       if [ -L $dest ]; then
         rm $dest && echo "Removed bad link to $real"
       fi
-      echo "WARNING: Alias described in \"modman\" does not exist in working copy: $svn"
+      echo "WARNING: Alias described in \"modman\" does not exist in working copy: $target"
       continue
     fi
 
     # Handle cases where files already exist at the destination
     if [ -e $dest ] && ! [ -L $dest ]; then
       if [ $FORCE -eq 0 ]; then
-        echo -e "CONFLICT: $real mapped by $svn already exists and is not a link.\nRun with --force to force removal of existing files."
+        echo -e "CONFLICT: $real mapped by $target already exists and is not a link.\nRun with --force to force removal of existing files."
         return 1
       else
         rm -rf $dest
@@ -287,9 +284,9 @@ create_links ()
       mkdir -p ${dest%/*}
       if ln -s $src $dest
       then
-        printf " Applied: %-30s  %s\n" "$svn" "$real"
+        printf " Applied: %-30s  %s\n" "$target" "$real"
       else
-        echo "Unable to create softlink for rule: $svn $real"
+        echo "Unable to create softlink for rule: $target $real"
         return 1
       fi
     fi
