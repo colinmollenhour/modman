@@ -477,10 +477,15 @@ case "$action" in
       echo "A module by that name has already been checked out"; exit 1
     fi
 
+    repository=$1; shift
     if [ "$action" == "checkout" ]; then
-      svn checkout $@ $module
+      svn checkout $repository $module
     else
-      git clone $@ $module && cd $module && git submodule update --init
+      git clone $repository $module && cd $module && git submodule update --init
+      branch=$1; shift
+      if [ -n "$branch" ]; then
+        git checkout --track -b $branch origin/$branch
+      fi
     fi
 
     if
