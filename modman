@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.2.8"
+version="1.2.9"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -255,7 +255,8 @@ create_links ()
         _dest="$dest/${_src##*/}"
 
         # Handle cases where files already exist at the destination or link does not match expected destination
-        if [ -e $_dest ]; then
+        if [ -e $_dest ];
+        then
           if ! [ -L $_dest ] && [ $FORCE -eq 0 ]; then
             echo -e "CONFLICT: $_dest mapped by $target already exists and is not a link.\nRun with $(tput bold)--force$(tput sgr0) to force removal of existing files."
             echo "  $(tput bold)$line$(tput sgr0)"
@@ -267,8 +268,15 @@ create_links ()
         fi
 
         # Create links if they do not already exist
-        if ! [ -e $_dest ]; then
+        if ! [ -e $_dest ];
+        then
+          # Delete conflicting symlinks that are broken
+          if [ -L $_dest ]; then
+            rm -f $_dest
+          fi
+          # Create parent directories
           mkdir -p ${_dest%/*}
+          # Create symlink
           if ln -s $_src $_dest
           then
             printf " Applied: %-30s  %s\n" "$target" "${real%/}/${_src##*/}"
@@ -283,7 +291,8 @@ create_links ()
     fi # end Handle globbing
 
     # Handle aliases that do not exist
-    if ! [ -e $src ]; then
+    if ! [ -e $src ];
+    then
       if [ -L $dest ]; then
         rm $dest && echo "Removed bad link to $real"
       fi
@@ -293,7 +302,8 @@ create_links ()
     fi
 
     # Handle cases where files already exist at the destination
-    if [ -e $dest ] && ! [ -L $dest ]; then
+    if [ -e $dest ] && ! [ -L $dest ];
+    then
       if [ $FORCE -eq 0 ]; then
         echo -e "CONFLICT: $real mapped by $target already exists and is not a link.\nRun with $(tput bold)--force$(tput sgr0) to force removal of existing files."
         echo "  $(tput bold)$line$(tput sgr0)"
@@ -304,8 +314,15 @@ create_links ()
     fi
 
     # Create links if they do not already exist
-    if ! [ -e $dest ]; then
+    if ! [ -e $dest ];
+    then
+      # Delete conflicting symlinks that are broken
+      if [ -L $dest ]; then
+        rm -f $dest
+      fi
+      # Create parent directories
       mkdir -p ${dest%/*}
+      # Create symlink
       if ln -s $src $dest
       then
         printf " Applied: %-30s  %s\n" "$target" "$real"
