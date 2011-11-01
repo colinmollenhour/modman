@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.2.9"
+version="1.3.0"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -35,6 +35,7 @@ Global Commands: $script <command>
   repair             rebuild all modman-created symlinks (no updates performed)
   clean              clean up broken symlinks (run this after deleting a module)
   --version          display the modman script's version
+  [--force]          may cause files to be overwrriten. also ignores untrusted certificates
 
 Module Actions: $script <module> <action> [<options>]
 ------------------------------
@@ -422,7 +423,11 @@ elif [ "$1" = "update-all" ]; then
     echo "Updating $module"
     cd $mm/$module
     if [ -d .svn ]; then
-      svn update
+      if [ $FORCE -eq 1 ]; then
+        svn update --force --non-interactive --trust-server-cert
+      else
+        svn update
+      fi
     elif [ -d .git ]; then
       git pull && git submodule update --init
     fi
