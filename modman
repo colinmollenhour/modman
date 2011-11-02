@@ -21,12 +21,13 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.3.0"
+version="1.4.0"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
 
-Global Commands: $script <command>
+Global Commands:
+  $script <command> [--force]
 ------------------------------
   init [basedir]     initialize the pwd (or [basedir]) as the modman deploy root
   list               list all valid modules that are currently checked out
@@ -35,15 +36,19 @@ Global Commands: $script <command>
   repair             rebuild all modman-created symlinks (no updates performed)
   clean              clean up broken symlinks (run this after deleting a module)
   --version          display the modman script's version
-  [--force]          may cause files to be overwrriten. also ignores untrusted certificates
+  [--force]          overwrite existing files, ignore untrusted cert warnings
 
-Module Actions: $script <module> <action> [<options>]
+Module Commands:
+  $script <command> <module> [--force] [--basedir <path>] [<SCM options>]
 ------------------------------
   checkout <src>     checkout a new modman compatible module using subversion
   clone <src>        checkout a new modman compatible module using git clone
   update             update module using the appropriate SCM
-  deploy             deploy an existing module (SCM not required)
+  deploy             deploy an existing module (SCM not required or used)
   deploy --copy      deploy with hardlinks instead of symlinks (not recommended)
+  [--force]          overwrite existing files, ignore untrusted cert warnings
+  [--basedir <path>] on checkout/clone, specifies a base for module deployment
+  [<SCM options>]    specify additional parameters to SCM checkout/clone
 
 Deploying a modman module:
 ------------------------------
@@ -103,13 +108,13 @@ update-all or repair commands are used can be defined with the @shell
 directive. The rest of the line after @shell will be piped to a new bash
 shell with the working directory being the module's root. The following
 environment variables will be made available:
-  PROJECT    The path of the project (where modman was initialized)
+  PROJECT    The path of the project base dir (where modman was initialized)
   MODULE     The current module's path
 
 Standalone mode:
 ------------------------------
 The modman script can be used without an SCM by placing the module directory in
-the proper location and running \"modman <module_name> deploy\". The root of the
+the proper location and running \"modman deploy <module>\". The root of the
 module must be located at <project_root>/.modman/<module_name>/ and it must
 contain a modman file.
 
@@ -149,29 +154,6 @@ elif [ "$1" = "--version" ]; then
   exit 0
 fi
 
-# Find the .modman directory and store parent path in $root
-mm_not_found="Module Manager directory not found.\nRun \"$script init\" in the root of the project with which you would like to use Module Manager."
-_pwd=$(pwd -P)
-root=$_pwd
-while ! [ -d $root/.modman ]; do
-  if [ "$root" = "/" ]; then echo -e $mm_not_found && exit 1; fi
-  cd .. || { echo -e "ERROR: Could not traverse up from $root\n$mm_not_found" && exit 1; }
-  root=$(pwd)
-done
-
-mmroot=$root          # parent of .modman directory 
-mm=$root/.modman      # path to .modman
-FORCE=0               # --force option off by default
-
-# Allow a different root to be specified as the base dir for deploying modules
-if [ -r $mm/.basedir ]; then
-  newroot=$(cat $mm/.basedir)
-  if [ -d $newroot ]; then
-    cd $newroot || { echo -e "Could not change dir to basedir specified in .basedir file: $newroot" && exit 1; }
-    root=$(pwd)
-  fi
-fi
-
 #############################################################
 # Check for existence of a module directory and modman file
 require_wc ()
@@ -193,6 +175,48 @@ remove_dead_links ()
   find -L $1 -type l -exec rm {} \;
 }
 
+###############################################################
+# Removes all .basedir files from submodules
+remove_basedirs ()
+{
+  local module=$1
+  find $mm/$module -name .basedir -print0 | grep -FzZv $mm/$module/.basedir | xargs -0 rm -f
+}
+
+###############################################################
+# Reads the base directory for a module
+# Return value is blank, or relative path ending with /
+get_basedir ()
+{
+  local module_dir=$1
+  local basedir=''
+  if [ -r $module_dir/.basedir ]; then
+    basedir=$(cat $module_dir/.basedir | grep -v '^#')
+    if [ -n $basedir ]; then
+      basedir=${basedir%%/}/
+    fi
+  fi
+  echo -n "$basedir"
+}
+
+###############################################################
+# Writes a file, setting the base directory for a module
+set_basedir ()
+{
+  local module_dir=$1
+  local basedir=${2##/}
+  basedir=${basedir%%/}
+  if [ -n $basedir ]; then
+    echo -e "# This file was created by modman. Module base directory:\n$import_base" \
+      > $module_dir/.basedir
+    if ! [ $? ]; then
+      echo "ERROR: Could not write to file: $module_dir/.basedir."
+      return 1
+    fi
+  fi
+  return 0
+}
+
 ################################################################################
 # Reads a modman file and does the following:
 #   Creates the symlinks as described
@@ -200,13 +224,21 @@ remove_dead_links ()
 #   Runs shell commands (@shell)
 create_links ()
 {
+  local module=$1
+  local module_dir=$(dirname $module)
+  local basedir=$(get_basedir $module_dir)
+  local relpath=${module:$((${#mmroot}+1))}
+
+  # Use argument if module doesn't have a .basedir file
+  if [ -z "$basedir" ]; then
+    basedir=$2
+  fi
+
   # Use a new file descriptor when called recursively
   # while loop should not read from stdin or else @shell scripts cannot get stdin
   FD=$((FD+1))
-  eval "exec $FD< <(grep -v '^#' $1 | tr -d '\r' | grep -v '^\s*$')"
+  eval "exec $FD< <(grep -v '^#' $module | tr -d '\r' | grep -v '^\s*$')"
   while read -u$FD line; do
-    module_dir=$(dirname $1)
-    relpath=${1:$((${#mmroot}+1))}
 
     # Split <target> <real>
     read target real <<< $line
@@ -220,23 +252,43 @@ create_links ()
 
     # Import other module definitions (e.g. git submodules, svn:externals, etc..)
     if [ "$target" == "@import" ]; then
-      import=$module_dir/${real%/}/modman
+      # check if base defined, create and save base to .basedir file
+      read import_path import_base <<< $real
+
+      import=$module_dir/${import_path%/}/modman
       if ! [ -r $import ]; then
         relimport=${import:$((${#mmroot}+1))}
         echo "ERROR: modman file not found ($relimport):"
         echo "  $(tput bold)$line$(tput sgr0)"
         return 1
-      else
-        create_links $import || return 1
-        continue
       fi
+
+      if [ -z $import_base ]; then
+        import_base=${basedir%%/}
+      else
+        import_base=${import_base##/}
+        import_base=${basedir}${import_base%%/}
+        if ! [ -d $root/$import_base ]; then
+          if ! mkdir -p $root/$import_base; then
+            echo "ERROR: Could not create import base directory: $import_base"
+            return 1
+          fi
+          echo "Created import base directory: $import_base"
+        fi
+        if ! set_basedir $module_dir/$import_path $import_base; then
+          return 1
+        fi
+      fi
+
+      create_links $import $import_base/ || return 1
+      continue
     fi
 
     # Run commands on the shell!
     # temporary file is workaround so that script can receive stdin
     if [ "$target" == "@shell" ]; then
       cd $module_dir
-      export PROJECT=$root
+      export PROJECT=$root/${basedir}
       export MODULE=$module_dir
       shell_tmp=$(mktemp $mm/.tmp.XXXXXXX)
       echo $real > $shell_tmp
@@ -247,7 +299,7 @@ create_links ()
 
     # Create symlink to target
     src=$module_dir/$target
-    dest=$root/${real%/}
+    dest=$root/${basedir}${real%/}
 
     # Handle globbing (extended globbing enabled)
     shopt -s extglob
@@ -380,6 +432,31 @@ copy_over ()
   return 0
 }
 
+################################
+# Find the .modman directory and store parent path in $root
+mm_not_found="Module Manager directory not found.\nRun \"$script init\" in the root of the project with which you would like to use Module Manager."
+_pwd=$(pwd -P)
+root=$_pwd
+while ! [ -d $root/.modman ]; do
+  if [ "$root" = "/" ]; then echo -e $mm_not_found && exit 1; fi
+  cd .. || { echo -e "ERROR: Could not traverse up from $root\n$mm_not_found" && exit 1; }
+  root=$(pwd)
+done
+
+mmroot=$root          # parent of .modman directory 
+mm=$root/.modman      # path to .modman
+FORCE=0               # --force option off by default
+
+# Allow a different root to be specified as root for deploying modules, applies to all modules
+newroot=$(get_basedir $mm)
+if [ -n $newroot ]; then
+  cd $mmroot/$newroot || {
+    echo -e "ERROR: Could not change to basedir specified in .basedir file: $newroot"
+    exit 1
+  }
+  root=$(pwd)
+fi
+
 ###############################
 # Handle "list" command
 if [ "$1" = "list" ]; then
@@ -452,7 +529,10 @@ elif [ "$1" = "repair" ]; then
   mv $mm-repairing $mm || { echo "Could not restore .modman directory."; exit 1; }
   for module in `ls $mm`; do
     test -d $mm/$module || continue;
-    require_wc $module && create_links $mm/$module/modman && echo -e "Repaired $module.\n"
+    require_wc $module &&
+    remove_basedirs $module &&
+    create_links $mm/$module/modman &&
+    echo -e "Repaired $module.\n"
   done
   exit 0
 
@@ -466,6 +546,15 @@ fi
 
 #############################################
 # Handle all other module-specific commands
+#############################################
+
+REGEX_ACTION='(update|checkout|clone|deploy)'
+
+# Action is first argument, but should be supported as second for backwards compatibility
+action=''
+if [[ $1 =~ $REGEX_ACTION ]]; then
+  action=$1; shift
+fi
 
 # Discover if modman is run from within a module directory
 cd $_pwd
@@ -480,10 +569,12 @@ while [ "$(dirname $mm)" != "$(pwd)" ] && [ "$(pwd)" != "/" ]; do
 done
 
 # If no module discovered or valid module is specified on command line
-if [ -z "$module" ] || [ -d "$mm/$1" ]; then
+if [ -z "$module" ] || [ -n "$1" -a -d "$mm/$1" ]; then
   module=$1; shift          # module name is first argument
 fi
-action=$1; shift          # action is next argument
+if [ -z "$action" ]; then
+  action=$1; shift          # action is next argument (legacy)
+fi
 
 [ -z "$module" ] && { echo "Not enough arguments (no module specified)"; exit 1; }
 [ -z "$action" ] && { echo "Not enough arguments (no action specified)"; exit 1; }
@@ -515,10 +606,20 @@ case "$action" in
   checkout|clone)
     FORCE=1
     cd $mm
+    if [ "$module" =~ $REGEX_ACTION ]; then
+      echo "You cannot $action a module with a name matching $REGEX_ACTION."; exit 1
+    fi
     if [ -d $wc_dir ]; then
       echo "A module by that name has already been checked out"; exit 1
     fi
 
+    basedir=''
+    if [ "$1" = "--basedir" ]; then
+      shift; basedir="$1"; shift
+      if [ -z "$basedir" -o -z "$1" ]; then
+        echo "Not enough arguments."; exit 1
+      fi
+    fi
     if [ "$action" == "checkout" ]; then
       svn checkout $@ $module
     else
@@ -528,6 +629,7 @@ case "$action" in
     if
       [ $? ] &&
       require_wc $module && cd $wc_dir &&
+      set_basedir $wc_dir $basedir &&
       create_links $wc_desc
     then
       echo "Checkout of $module complete"
