@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.4.0"
+version="1.4.1"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -506,7 +506,7 @@ elif [ "$1" = "update-all" ]; then
         svn update
       fi
     elif [ -d .git ]; then
-      git pull && git submodule update --init
+      git pull && git submodule update --init --recursive
     fi
     if [ $? ] && create_links $mm/$module/modman; then
       echo -e "Update of $module complete.\n"
@@ -595,7 +595,7 @@ case "$action" in
     if [ -d .svn ]; then
       svn update $@
     elif [ -d .git ]; then
-      git pull $@ && git submodule update --init
+      git pull $@ && git submodule update --init --recursive
     fi
     [ $? ] || { echo "failed to update working copy"; rm .modman-old; exit 1; }
 
@@ -606,7 +606,7 @@ case "$action" in
   checkout|clone)
     FORCE=1
     cd $mm
-    if [ "$module" =~ $REGEX_ACTION ]; then
+    if [[ $module =~ $REGEX_ACTION ]]; then
       echo "You cannot $action a module with a name matching $REGEX_ACTION."; exit 1
     fi
     if [ -d $wc_dir ]; then
