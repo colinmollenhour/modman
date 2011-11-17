@@ -18,7 +18,7 @@ _modman()
 			if [ -n "$mm" ]; then
 				opts="${opts} list update-all deploy-all repair clean"
 				opts="${opts} checkout clone deploy update"
-            fi
+			fi
 			;;
 		init | --help | --version | list | repair | --force | --copy)
 			opts=""
