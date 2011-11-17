@@ -1,39 +1,37 @@
 #!/bin/bash
+# Installation:
+#  Copy to /etc/bash_completion.d/modman
+# or
+#  Append to ~/.bash_completion
+#
 _modman()
 {
-	local cur prev opts mm
+	local cur prev opts mm module
 	COMPREPLY=()
 	cur="${COMP_WORDS[COMP_CWORD]}"
 	prev="${COMP_WORDS[COMP_CWORD-1]}"
- 
 	mm=$(_modman_get_mm)
 	module=$(_modman_get_module)
- 
 	case "${prev}" in
 		modman)
 			opts="init --help --version"
 			[ -n "$mm" ] && \
-              opts="${opts} list update-all deploy-all repair clean checkout clone deploy update"
+				opts="${opts} list update-all deploy-all repair clean"
+				opts="${opts} checkout clone deploy update"
 			;;
- 
 		init | --help | --version | list | repair | --force | --copy)
 			opts=""
 			;;
-			
 		update-all | deploy-all | checkout | clone)
 			opts="--force"
 			;;
- 
 		deploy | update)
 			opts=$(modman list)
 			;;
-		
 		*)
 			[ -d "$mm/${prev}" ] && opts="--force"
 			;;
- 
 	esac
- 
 	COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
 	return 0
 }
@@ -59,7 +57,7 @@ _modman_get_module()
 	local root module modpath mm _pwd
 	_pwd=`pwd`
 	mm=$(_modman_get_mm)
-    [ -z "$mm" ] && return 1
+	[ -z "$mm" ] && return 1
 	root="$(dirname $mm)"
 	module=''
 	while [ "$root" != "$(pwd)" ]; do
@@ -71,11 +69,7 @@ _modman_get_module()
 		cd ..
 	done
 	cd $_pwd
- 
-	if [ -z "$module" ] ; then
-		return 1
-	fi
- 
+	[ -z "$module" ] && return 1
 	echo $module
 }
  
