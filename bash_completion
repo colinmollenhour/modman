@@ -14,13 +14,13 @@ _modman()
 	module=$(_modman_get_module)
 	case "${prev}" in
 		modman)
-			opts="init --help --version"
+			opts="init --help --version --tutorial"
 			if [ -n "$mm" ]; then
 				opts="${opts} list update-all deploy-all repair clean"
 				opts="${opts} checkout clone deploy update"
 			fi
 			;;
-		init | --help | --version | list | repair | --force | --copy)
+		init | --help | --version | --tutorial | list | repair | --force | --copy)
 			opts=""
 			;;
 		update-all | deploy-all | checkout | clone)

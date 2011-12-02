@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.4.1"
+version="1.4.2"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -35,6 +35,8 @@ Global Commands:
   deploy-all         deploy all modules (no VCS interaction)
   repair             rebuild all modman-created symlinks (no updates performed)
   clean              clean up broken symlinks (run this after deleting a module)
+  --help             display this help message
+  --tutorial         show a brief tutorial on using modman
   --version          display the modman script's version
   [--force]          overwrite existing files, ignore untrusted cert warnings
 
@@ -49,14 +51,16 @@ Module Commands:
   [--force]          overwrite existing files, ignore untrusted cert warnings
   [--basedir <path>] on checkout/clone, specifies a base for module deployment
   [<SCM options>]    specify additional parameters to SCM checkout/clone
-
+"
+tutorial="\
 Deploying a modman module:
 ------------------------------
-The 'checkout' and 'clone' commands support additional arguments which will be
-passed to the 'svn checkout' and 'git clone' commands. This allows you to for
-example specify a --username (svn) or a --branch (git). See 'svn help checkout'
-and 'git help clone' for a full list of options. Both svn:externals and git
-submodules will be included in the checkout/clone by default.
+The 'checkout' and 'clone' commands are used to checkout new modules from a
+repository (subversion and git, respectively). These commands support additional
+arguments which will be passed to the 'svn checkout' and 'git clone' commands.
+This allows you to for example specify a --username (svn) or a --branch (git).
+See 'svn help checkout' and 'git help clone' for a full list of options.
+Both svn:externals and git submodules will be automatically included.
 
 By default, if a module being checked out contains symlink mappings that
 conflict with existing files an error will be thrown. Use --force to cause
@@ -145,24 +149,38 @@ if [ "$1" = "init" ]; then
 ###########################
 # Handle "--help" command
 elif [ "$1" = "--help" ]; then
-  echo -e "$usage"
-  exit 0
+  echo -e "$usage"; exit 0
+###########################
+# Handle "--tutorial" command
+elif [ "$1" = "--tutorial" ]; then
+  echo -e "$tutorial" | pager; exit 0
 ###########################
 # Handle "--version" command
 elif [ "$1" = "--version" ]; then
-  echo "Module Manager version: $version"
-  exit 0
+  echo "Module Manager version: $version"; exit 0
 fi
+
+
+#############################################################
+# Echo a line in bold font
+echo_b ()
+{
+  if [ "$1" = "-e" ]; then
+    echo -e "$(tput bold)$2$(tput sgr0)"
+  else
+    echo "$(tput bold)$1$(tput sgr0)"
+  fi
+}
 
 #############################################################
 # Check for existence of a module directory and modman file
 require_wc ()
 {
   if ! [ -d $mm/$1 ]; then
-    echo "ERROR: $1 has not been checked out."; exit 1
+    echo_b "ERROR: $1 has not been checked out."; return 1
   fi
   if ! [ -r $mm/$1/modman ]; then
-    echo "ERROR: $1 does not contain a \"modman\" module description file."; exit 1
+    echo_b "ERROR: $1 does not contain a \"modman\" module description file."; return 1
   fi
   return 0
 }
@@ -172,7 +190,8 @@ require_wc ()
 remove_dead_links ()
 {
   # Use -exec rm instead of -delete to avoid bug in Darwin. -Thanks Vinai!
-  find -L $1 -type l -exec rm {} \;
+  find -L $root -type l -exec rm {} \;
+  return $?
 }
 
 ###############################################################
@@ -245,8 +264,7 @@ create_links ()
 
     # Sanity check for empty data
     if [ -z "$target" -o -z "$real" ]; then
-      echo "ERROR: Invalid input in modman file ($relpath):"
-      echo "  $(tput bold)$line$(tput sgr0)"
+      echo_b -e "ERROR: Invalid input in modman file ($relpath):\n $line"
       return 1
     fi
 
@@ -258,8 +276,7 @@ create_links ()
       import=$module_dir/${import_path%/}/modman
       if ! [ -r $import ]; then
         relimport=${import:$((${#mmroot}+1))}
-        echo "ERROR: modman file not found ($relimport):"
-        echo "  $(tput bold)$line$(tput sgr0)"
+        echo_b -e "ERROR: modman file not found ($relimport):\n $line"
         return 1
       fi
 
@@ -291,8 +308,8 @@ create_links ()
       export PROJECT=$root/${basedir}
       export MODULE=$module_dir
       shell_tmp=$(mktemp $mm/.tmp.XXXXXXX)
-      echo $real > $shell_tmp
-      bash $shell_tmp
+      echo "($real)" > $shell_tmp
+      source $shell_tmp
       rm -f $shell_tmp
       continue
     fi
@@ -311,8 +328,9 @@ create_links ()
         if [ -e $_dest ];
         then
           if ! [ -L $_dest ] && [ $FORCE -eq 0 ]; then
-            echo -e "CONFLICT: $_dest mapped by $target already exists and is not a link.\nRun with $(tput bold)--force$(tput sgr0) to force removal of existing files."
-            echo "  $(tput bold)$line$(tput sgr0)"
+            echo_b "CONFLICT: $_dest mapped by $target already exists and is not a link."
+            echo_b "  $line"
+            echo   "(Run with $(tput bold)--force$(tput sgr0) to force removal of existing files.)"
             return 1
           elif ! [ -L $_dest ] || [ $_src != $(readlink $_dest) ]; then
             echo "Removing conflicting `stat -c %F $_dest`: $_dest"
@@ -334,8 +352,7 @@ create_links ()
           then
             printf " Applied: %-30s  %s\n" "$target" "${real%/}/${_src##*/}"
           else
-            echo "ERROR: Unable to create symlink ($_dest):"
-            echo "  $(tput bold)$line$(tput sgr0)"
+            echo_b -e "ERROR: Unable to create symlink ($_dest):\n $line"
             return 1
           fi
         fi
@@ -349,8 +366,7 @@ create_links ()
       if [ -L $dest ]; then
         rm $dest && echo "Removed bad link to $real"
       fi
-      echo "WARNING: Symlink target does not exist ($relpath):"
-      echo "  $(tput bold)$line$(tput sgr0)"
+      echo -e "WARNING: Symlink target does not exist ($relpath):\n $line"
       continue
     fi
 
@@ -358,8 +374,9 @@ create_links ()
     if [ -e $dest ] && ! [ -L $dest ];
     then
       if [ $FORCE -eq 0 ]; then
-        echo -e "CONFLICT: $real mapped by $target already exists and is not a link.\nRun with $(tput bold)--force$(tput sgr0) to force removal of existing files."
-        echo "  $(tput bold)$line$(tput sgr0)"
+        echo_b "CONFLICT: $real mapped by $target already exists and is not a link."
+        echo_b "  $line"
+        echo   "(Run with $(tput bold)--force$(tput sgr0) to force removal of existing files.)"
         return 1
       else
         rm -rf $dest
@@ -380,8 +397,7 @@ create_links ()
       then
         printf " Applied: %-30s  %s\n" "$target" "$real"
       else
-        echo "ERROR: Unable to create symlink ($dest):"
-        echo "  $(tput bold)$line$(tput sgr0)"
+        echo_b -e "ERROR: Unable to create symlink ($dest):\n $line"
         return 1
       fi
     fi
@@ -472,31 +488,31 @@ if [ "$1" = "list" ]; then
 elif [ "$1" = "deploy-all" ]; then
   if [ "$2" == "--force" ]; then FORCE=1; shift; fi
   if [ -n "$2" ]; then echo "Too many arguments to deploy-all command."; exit 1; fi
+  remove_dead_links
   errors=0
   for module in `ls $mm`; do
-    test -d $mm/$module || continue;
-    require_wc $module
+    test -d $mm/$module && require_wc $module || continue;
     echo "Deploying $module to $root"
     if create_links $mm/$module/modman; then
-      echo -e "Deployment of $module complete.\n"
+      echo -e "Deployment of '$module' complete.\n"
     else
-      echo -e "$(tput bold)Error occurred while deploying $module.$(tput sgr0)\n"
+      echo_b -e "Error occurred while deploying '$module'.\n"
       errors=$((errors+1))
     fi
   done
-  remove_dead_links $root
   echo "Deployed all modules with $errors errors."
   exit 0
 
 ###############################
 # Handle "update-all" command
+#   Updates source code, removes dead links and then deploys modules
 elif [ "$1" = "update-all" ]; then
   if [ "$2" == "--force" ]; then FORCE=1; shift; fi
   if [ -n "$2" ]; then echo "Too many arguments to update-all command."; exit 1; fi
-  errors=0
+  update_errors=0
+  updated=''
   for module in `ls $mm`; do
-    test -d $mm/$module || continue;
-    require_wc $module
+    test -d $mm/$module && require_wc $module || continue;
     echo "Updating $module"
     cd $mm/$module
     if [ -d .svn ]; then
@@ -508,15 +524,25 @@ elif [ "$1" = "update-all" ]; then
     elif [ -d .git ]; then
       git pull && git submodule update --init --recursive
     fi
-    if [ $? ] && create_links $mm/$module/modman; then
-      echo -e "Update of $module complete.\n"
+    echo
+    if [ $? ]; then
+      updated="$updated|$module"
     else
-      echo -e "$(tput bold)Error occurred while updating or deploying $module.$(tput sgr0)\n"
-      errors=$((errors+1))
+      echo_b -e "Error occurred while updating '$module'.\n"
+      update_errors=$((update_errors+1))
     fi
   done
-  remove_dead_links $root
-  echo "Updated all modules with $errors errors."
+  remove_dead_links
+  deploy_errors=0
+  for module in ${updated//\|/ }; do
+    if create_links $mm/$module/modman; then
+      echo -e "Deployment of '$module' complete.\n"
+    else
+      echo_b -e "Error occurred while deploying '$module'.\n"
+      deploy_errors=$((deploy_errors+1))
+    fi
+  done
+  echo "Updated all modules with $update_errors update errors and $deploy_errors deploy errors."
   exit 0
 
 ###########################
@@ -524,12 +550,11 @@ elif [ "$1" = "update-all" ]; then
 elif [ "$1" = "repair" ]; then
   if [ "$2" == "--force" ]; then FORCE=1; shift; fi
   echo "Repairing links, do not interrupt."
-  mv $mm $mm-repairing || { echo "Could not temporarily rename .modman directory."; exit 1; }
-  remove_dead_links $root
-  mv $mm-repairing $mm || { echo "Could not restore .modman directory."; exit 1; }
+  mv $mm $mm-repairing || { echo_b "ERROR: Could not temporarily rename .modman directory."; exit 1; }
+  remove_dead_links
+  mv $mm-repairing $mm || { echo_b "ERROR: Could not restore .modman directory."; exit 1; }
   for module in `ls $mm`; do
-    test -d $mm/$module || continue;
-    require_wc $module &&
+    test -d $mm/$module && require_wc $module || continue;
     remove_basedirs $module &&
     create_links $mm/$module/modman &&
     echo -e "Repaired $module.\n"
@@ -540,7 +565,7 @@ elif [ "$1" = "repair" ]; then
 # Handle "clean" command
 elif [ "$1" = "clean" ]; then
   echo "Cleaning broken links."
-  remove_dead_links $root
+  remove_dead_links
   exit 0
 fi
 
@@ -548,7 +573,7 @@ fi
 # Handle all other module-specific commands
 #############################################
 
-REGEX_ACTION='(update|checkout|clone|deploy)'
+REGEX_ACTION='(update|checkout|clone|deploy|\s+)'
 
 # Action is first argument, but should be supported as second for backwards compatibility
 action=''
@@ -590,7 +615,7 @@ wc_desc=$wc_dir/modman    # path to modman structure descriptor file
 case "$action" in
 
   update)
-    require_wc $module
+    require_wc $module || exit 1
     cd $wc_dir
     if [ -d .svn ]; then
       svn update $@
@@ -599,8 +624,8 @@ case "$action" in
     fi
     [ $? ] || { echo "failed to update working copy"; rm .modman-old; exit 1; }
 
+    remove_dead_links
     create_links $wc_desc && echo "Update of $module complete."
-    remove_dead_links $root
     ;;
 
   checkout|clone)
@@ -610,7 +635,7 @@ case "$action" in
       echo "You cannot $action a module with a name matching $REGEX_ACTION."; exit 1
     fi
     if [ -d $wc_dir ]; then
-      echo "A module by that name has already been checked out"; exit 1
+      echo "A module by that name has already been checked out."; exit 1
     fi
 
     basedir=''
@@ -637,11 +662,11 @@ case "$action" in
       if [ -d $wc_dir ]; then rm -rf $wc_dir; fi
       echo "Error checking out $module, operation cancelled."
     fi
-    remove_dead_links $root
+    remove_dead_links
     ;;
 
   deploy)
-    require_wc $module
+    require_wc $module || exit 1
     if [ "$1" = "--copy" ]; then
       copy_over $wc_desc && echo "$module has been deployed under $root with --copy enabled"
     else
@@ -650,7 +675,8 @@ case "$action" in
     ;;
 
   *)
-    echo -e "$usage\nInvalid action: $action\n";
+    echo -e "$usage"
+    echo_b "Invalid action: $action";
     exit;
 
 esac
