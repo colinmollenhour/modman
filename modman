@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.4.2"
+version="1.4.3"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -211,7 +211,7 @@ get_basedir ()
   local basedir=''
   if [ -r $module_dir/.basedir ]; then
     basedir=$(cat $module_dir/.basedir | grep -v '^#')
-    if [ -n $basedir ]; then
+    if [ -n "$basedir" ]; then
       basedir=${basedir%%/}/
     fi
   fi
@@ -225,7 +225,7 @@ set_basedir ()
   local module_dir=$1
   local basedir=${2##/}
   basedir=${basedir%%/}
-  if [ -n $basedir ]; then
+  if [ -n "$basedir" ]; then
     echo -e "# This file was created by modman. Module base directory:\n$import_base" \
       > $module_dir/.basedir
     if ! [ $? ]; then
@@ -465,7 +465,7 @@ FORCE=0               # --force option off by default
 
 # Allow a different root to be specified as root for deploying modules, applies to all modules
 newroot=$(get_basedir $mm)
-if [ -n $newroot ]; then
+if [ -n "$newroot" ]; then
   cd $mmroot/$newroot || {
     echo -e "ERROR: Could not change to basedir specified in .basedir file: $newroot"
     exit 1
