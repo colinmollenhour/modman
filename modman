@@ -397,7 +397,7 @@ create_links ()
       then
         printf " Applied: %-30s  %s\n" "$target" "$real"
       else
-        echo_b -e "ERROR: Unable to create symlink ("$dest"):\n $line"
+        echo_b -e "ERROR: Unable to create symlink ($dest):\n $line"
         return 1
       fi
     fi
@@ -437,7 +437,7 @@ copy_over ()
       mkdir --parents `dirname "$dest"`
     else
       if [ $FORCE -eq 0 ]; then
-        echo -e "CONFLICT: "$dest" already exists.\nRun with --force to force removal of existing files."
+        echo -e "CONFLICT: $dest already exists.\nRun with --force to force removal of existing files."
         return 1
       else
         rm -rf "$dest"
