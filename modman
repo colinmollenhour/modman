@@ -320,8 +320,8 @@ create_links ()
 
     # Handle globbing (extended globbing enabled)
     shopt -s extglob
-    if ! [ -e "$src" ] && [ `ls $src 2> /dev/null | wc -l` -gt 0 ]; then
-      for _src in $src; do
+    if ! [ -e "$src" ] && [ `ls "$src" 2> /dev/null | wc -l` -gt 0 ]; then
+      for _src in "$src"; do
         _dest="$dest/${_src##*/}"
 
         # Handle cases where files already exist at the destination or link does not match expected destination
@@ -361,17 +361,17 @@ create_links ()
     fi # end Handle globbing
 
     # Handle aliases that do not exist
-    if ! [ -e $src ];
+    if ! [ -e "$src" ];
     then
-      if [ -L $dest ]; then
-        rm $dest && echo "Removed bad link to $real"
+      if [ -L "$dest" ]; then
+        rm "$dest" && echo "Removed bad link to $real"
       fi
       echo -e "WARNING: Symlink target does not exist ($relpath):\n $line"
       continue
     fi
 
     # Handle cases where files already exist at the destination
-    if [ -e $dest ] && ! [ -L $dest ];
+    if [ -e "$dest" ] && ! [ -L "$dest" ];
     then
       if [ $FORCE -eq 0 ]; then
         echo_b "CONFLICT: $real mapped by $target already exists and is not a link."
@@ -379,21 +379,21 @@ create_links ()
         echo   "(Run with $(tput bold)--force$(tput sgr0) to force removal of existing files.)"
         return 1
       else
-        rm -rf $dest
+        rm -rf "$dest"
       fi
     fi
 
     # Create links if they do not already exist
-    if ! [ -e $dest ];
+    if ! [ -e "$dest" ];
     then
       # Delete conflicting symlinks that are broken
-      if [ -L $dest ]; then
-        rm -f $dest
+      if [ -L "$dest" ]; then
+        rm -f "$dest"
       fi
       # Create parent directories
       mkdir -p ${dest%/*}
       # Create symlink
-      if ln -s $src $dest
+      if ln -s "$src" "$dest"
       then
         printf " Applied: %-30s  %s\n" "$target" "$real"
       else
@@ -433,8 +433,8 @@ copy_over ()
     fi
 
     # Copy the files to their respective locations using hardlinks for efficiency
-    if ! [ -e `dirname $dest` ]; then
-      mkdir --parents `dirname $dest`
+    if ! [ -e `dirname "$dest"` ]; then
+      mkdir --parents `dirname "$dest"`
     else
       if [ $FORCE -eq 0 ]; then
         echo -e "CONFLICT: $dest already exists.\nRun with --force to force removal of existing files."
@@ -443,7 +443,7 @@ copy_over ()
         rm -rf "$dest"
       fi
     fi
-    cp --recursive --link $src $dest || return 1
+    cp --recursive --link "$src" "$dest" || return 1
   done
   return 0
 }
