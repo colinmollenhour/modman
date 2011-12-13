@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.4.3"
+version="1.4.4"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -176,10 +176,10 @@ echo_b ()
 # Check for existence of a module directory and modman file
 require_wc ()
 {
-  if ! [ -d $mm/$1 ]; then
+  if ! [ -d "$mm/$1" ]; then
     echo_b "ERROR: $1 has not been checked out."; return 1
   fi
-  if ! [ -r $mm/$1/modman ]; then
+  if ! [ -r "$mm/$1/modman" ]; then
     echo_b "ERROR: $1 does not contain a \"modman\" module description file."; return 1
   fi
   return 0
@@ -190,7 +190,7 @@ require_wc ()
 remove_dead_links ()
 {
   # Use -exec rm instead of -delete to avoid bug in Darwin. -Thanks Vinai!
-  find -L $root -type l -exec rm {} \;
+  find -L "$root" -type l -exec rm {} \;
   return $?
 }
 
@@ -199,7 +199,7 @@ remove_dead_links ()
 remove_basedirs ()
 {
   local module=$1
-  find $mm/$module -name .basedir -print0 | grep -FzZv $mm/$module/.basedir | xargs -0 rm -f
+  find "$mm/$module" -name .basedir -print0 | grep -FzZv "$mm/$module/.basedir" | xargs -0 rm -f
 }
 
 ###############################################################
@@ -209,8 +209,8 @@ get_basedir ()
 {
   local module_dir=$1
   local basedir=''
-  if [ -r $module_dir/.basedir ]; then
-    basedir=$(cat $module_dir/.basedir | grep -v '^#')
+  if [ -r "$module_dir/.basedir" ]; then
+    basedir=$(cat "$module_dir/.basedir" | grep -v '^#')
     if [ -n "$basedir" ]; then
       basedir=${basedir%%/}/
     fi
@@ -227,7 +227,7 @@ set_basedir ()
   basedir=${basedir%%/}
   if [ -n "$basedir" ]; then
     echo -e "# This file was created by modman. Module base directory:\n$import_base" \
-      > $module_dir/.basedir
+      > "$module_dir/.basedir"
     if ! [ $? ]; then
       echo "ERROR: Could not write to file: $module_dir/.basedir."
       return 1
@@ -244,8 +244,8 @@ set_basedir ()
 create_links ()
 {
   local module=$1
-  local module_dir=$(dirname $module)
-  local basedir=$(get_basedir $module_dir)
+  local module_dir=$(dirname "$module")
+  local basedir=$(get_basedir "$module_dir")
   local relpath=${module:$((${#mmroot}+1))}
 
   # Use argument if module doesn't have a .basedir file
@@ -256,7 +256,7 @@ create_links ()
   # Use a new file descriptor when called recursively
   # while loop should not read from stdin or else @shell scripts cannot get stdin
   FD=$((FD+1))
-  eval "exec $FD< <(grep -v '^#' $module | tr -d '\r' | grep -v '^\s*$')"
+  eval "exec $FD< <(grep -v '^#' '$module' | tr -d '\r' | grep -v '^\s*$')"
   while read -u$FD line; do
 
     # Split <target> <real>
@@ -269,48 +269,48 @@ create_links ()
     fi
 
     # Import other module definitions (e.g. git submodules, svn:externals, etc..)
-    if [ "$target" == "@import" ]; then
+    if [ "$target" = "@import" ]; then
       # check if base defined, create and save base to .basedir file
       read import_path import_base <<< $real
 
       import=$module_dir/${import_path%/}/modman
-      if ! [ -r $import ]; then
+      if ! [ -r "$import" ]; then
         relimport=${import:$((${#mmroot}+1))}
         echo_b -e "ERROR: modman file not found ($relimport):\n $line"
         return 1
       fi
 
-      if [ -z $import_base ]; then
+      if [ -z "$import_base" ]; then
         import_base=${basedir%%/}
       else
         import_base=${import_base##/}
         import_base=${basedir}${import_base%%/}
-        if ! [ -d $root/$import_base ]; then
-          if ! mkdir -p $root/$import_base; then
+        if ! [ -d "$root/$import_base" ]; then
+          if ! mkdir -p "$root/$import_base"; then
             echo "ERROR: Could not create import base directory: $import_base"
             return 1
           fi
           echo "Created import base directory: $import_base"
         fi
-        if ! set_basedir $module_dir/$import_path $import_base; then
+        if ! set_basedir "$module_dir/$import_path" "$import_base"; then
           return 1
         fi
       fi
 
-      create_links $import $import_base/ || return 1
+      create_links "$import" "$import_base/" || return 1
       continue
     fi
 
     # Run commands on the shell!
     # temporary file is workaround so that script can receive stdin
-    if [ "$target" == "@shell" ]; then
-      cd $module_dir
+    if [ "$target" = "@shell" ]; then
+      cd "$module_dir"
       export PROJECT=$root/${basedir}
       export MODULE=$module_dir
-      shell_tmp=$(mktemp $mm/.tmp.XXXXXXX)
-      echo "($real)" > $shell_tmp
-      source $shell_tmp
-      rm -f $shell_tmp
+      shell_tmp=$(mktemp "$mm/.tmp.XXXXXXX")
+      echo "($real)" > "$shell_tmp"
+      source "$shell_tmp"
+      rm -f "$shell_tmp"
       continue
     fi
 
@@ -320,35 +320,39 @@ create_links ()
 
     # Handle globbing (extended globbing enabled)
     shopt -s extglob
-    if ! [ -e "$src" ] && [ `ls "$src" 2> /dev/null | wc -l` -gt 0 ]; then
-      for _src in "$src"; do
-        _dest="$dest/${_src##*/}"
+    if ! [ -e "$src" ] && [ $(ls $src 2> /dev/null | wc -l) -gt 0 ]; then
+      for _src in $src; do
+        _dest=$dest/${_src##*/}
 
         # Handle cases where files already exist at the destination or link does not match expected destination
-        if [ -e $_dest ];
+        if [ -e "$_dest" ];
         then
-          if ! [ -L $_dest ] && [ $FORCE -eq 0 ]; then
+          if ! [ -L "$_dest" ] && [ $FORCE -eq 0 ]; then
             echo_b "CONFLICT: $_dest mapped by $target already exists and is not a link."
             echo_b "  $line"
             echo   "(Run with $(tput bold)--force$(tput sgr0) to force removal of existing files.)"
             return 1
-          elif ! [ -L $_dest ] || [ $_src != $(readlink $_dest) ]; then
-            echo "Removing conflicting `stat -c %F $_dest`: $_dest"
-            rm -rf $_dest || return 1
+          else
+            destLink=$(readlink $_dest)
+            if ! [ -L "$_dest" ] || [ "$_src" != "$destLink" ]; then
+              fileType=$(stat -c %F "$_dest")
+              echo "Removing conflicting $fileType: $_dest"
+              rm -rf "$_dest" || return 1
+            fi
           fi
         fi
 
         # Create links if they do not already exist
-        if ! [ -e $_dest ];
+        if ! [ -e "$_dest" ];
         then
           # Delete conflicting symlinks that are broken
-          if [ -L $_dest ]; then
-            rm -f $_dest
+          if [ -L "$_dest" ]; then
+            rm -f "$_dest"
           fi
           # Create parent directories
-          mkdir -p ${_dest%/*}
+          mkdir -p "${_dest%/*}"
           # Create symlink
-          if ln -s $_src $_dest
+          if ln -s "$_src" "$_dest"
           then
             printf " Applied: %-30s  %s\n" "$target" "${real%/}/${_src##*/}"
           else
@@ -391,7 +395,7 @@ create_links ()
         rm -f "$dest"
       fi
       # Create parent directories
-      mkdir -p ${dest%/*}
+      mkdir -p "${dest%/*}"
       # Create symlink
       if ln -s "$src" "$dest"
       then
@@ -415,26 +419,27 @@ FD=3  # Emulate a stack for file descriptors starting at 3
 # Similar to create_links but creates hardlinks instead of using symlinks
 copy_over ()
 {
-  grep -v '^#' $1 | grep -v '^\s*$' | \
+  grep -v '^#' "$1" | grep -v '^\s*$' | \
   while read svn real; do
-    module_dir=`dirname $1`
+    module_dir=$(dirname "$1")
     src=$module_dir/$svn
-    dest=`echo -n "$root/${real%/}" | tr -d '\r'`
+    dest=$(echo -n "$root/${real%/}" | tr -d '\r')
 
     # Handle @import case
-    if [[ "$svn" == "@import" ]]; then
+    if [ "$svn" = "@import" ]; then
       import=$module_dir/$real/modman
-      if ! [ -r $import ]; then
+      if ! [ -r "$import" ]; then
         echo "Failed \"@import $real\", $import not found."; return 1
       else
-        copy_over $import || return 1
+        copy_over "$import" || return 1
         continue
       fi
     fi
 
     # Copy the files to their respective locations using hardlinks for efficiency
-    if ! [ -e `dirname "$dest"` ]; then
-      mkdir --parents `dirname "$dest"`
+    destDir=$(dirname "$dest")
+    if ! [ -e "$destDir" ]; then
+      mkdir --parents "$destDir"
     else
       if [ $FORCE -eq 0 ]; then
         echo -e "CONFLICT: $dest already exists.\nRun with --force to force removal of existing files."
@@ -464,9 +469,9 @@ mm=$root/.modman      # path to .modman
 FORCE=0               # --force option off by default
 
 # Allow a different root to be specified as root for deploying modules, applies to all modules
-newroot=$(get_basedir $mm)
+newroot=$(get_basedir "$mm")
 if [ -n "$newroot" ]; then
-  cd $mmroot/$newroot || {
+  cd "$mmroot/$newroot" || {
     echo -e "ERROR: Could not change to basedir specified in .basedir file: $newroot"
     exit 1
   }
@@ -477,23 +482,23 @@ fi
 # Handle "list" command
 if [ "$1" = "list" ]; then
   if [ -n "$2" ]; then echo "Too many arguments to list command."; exit 1; fi
-  for module in `ls $mm`; do
-    test -d $mm/$module || continue;
-    require_wc $module && echo "$module"
+  ls -1 "$mm" | while read -d $'\n' module; do
+    test -d "$mm/$module" || continue;
+    require_wc "$module" && echo "$module"
   done  
   exit 0
 
 ###############################
 # Handle "deploy-all" command
 elif [ "$1" = "deploy-all" ]; then
-  if [ "$2" == "--force" ]; then FORCE=1; shift; fi
+  if [ "$2" = "--force" ]; then FORCE=1; shift; fi
   if [ -n "$2" ]; then echo "Too many arguments to deploy-all command."; exit 1; fi
   remove_dead_links
   errors=0
-  for module in `ls $mm`; do
-    test -d $mm/$module && require_wc $module || continue;
+  ls -1 "$mm" | while read -d $'\n' module; do
+    test -d "$mm/$module" && require_wc "$module" || continue;
     echo "Deploying $module to $root"
-    if create_links $mm/$module/modman; then
+    if create_links "$mm/$module/modman"; then
       echo -e "Deployment of '$module' complete.\n"
     else
       echo_b -e "Error occurred while deploying '$module'.\n"
@@ -507,14 +512,14 @@ elif [ "$1" = "deploy-all" ]; then
 # Handle "update-all" command
 #   Updates source code, removes dead links and then deploys modules
 elif [ "$1" = "update-all" ]; then
-  if [ "$2" == "--force" ]; then FORCE=1; shift; fi
+  if [ "$2" = "--force" ]; then FORCE=1; shift; fi
   if [ -n "$2" ]; then echo "Too many arguments to update-all command."; exit 1; fi
   update_errors=0
   updated=''
-  for module in `ls $mm`; do
-    test -d $mm/$module && require_wc $module || continue;
+  ls -1 "$mm" | while read -d $'\n' module; do
+    test -d "$mm/$module" && require_wc "$module" || continue;
     echo "Updating $module"
-    cd $mm/$module
+    cd "$mm/$module"
     if [ -d .svn ]; then
       if [ $FORCE -eq 1 ]; then
         svn update --force --non-interactive --trust-server-cert
@@ -526,7 +531,7 @@ elif [ "$1" = "update-all" ]; then
     fi
     echo
     if [ $? ]; then
-      updated="$updated|$module"
+      updated="${updated}${module}\n"
     else
       echo_b -e "Error occurred while updating '$module'.\n"
       update_errors=$((update_errors+1))
@@ -534,8 +539,8 @@ elif [ "$1" = "update-all" ]; then
   done
   remove_dead_links
   deploy_errors=0
-  for module in ${updated//\|/ }; do
-    if create_links $mm/$module/modman; then
+  echo -en "$updated" | while read -d $'\n' module; do
+    if create_links "$mm/$module/modman"; then
       echo -e "Deployment of '$module' complete.\n"
     else
       echo_b -e "Error occurred while deploying '$module'.\n"
@@ -548,15 +553,15 @@ elif [ "$1" = "update-all" ]; then
 ###########################
 # Handle "repair" command
 elif [ "$1" = "repair" ]; then
-  if [ "$2" == "--force" ]; then FORCE=1; shift; fi
+  if [ "$2" = "--force" ]; then FORCE=1; shift; fi
   echo "Repairing links, do not interrupt."
-  mv $mm $mm-repairing || { echo_b "ERROR: Could not temporarily rename .modman directory."; exit 1; }
+  mv "$mm" "$mm-repairing" || { echo_b "ERROR: Could not temporarily rename .modman directory."; exit 1; }
   remove_dead_links
-  mv $mm-repairing $mm || { echo_b "ERROR: Could not restore .modman directory."; exit 1; }
-  for module in `ls $mm`; do
-    test -d $mm/$module && require_wc $module || continue;
-    remove_basedirs $module &&
-    create_links $mm/$module/modman &&
+  mv "$mm-repairing" "$mm" || { echo_b "ERROR: Could not restore .modman directory."; exit 1; }
+  ls -1 "$mm" | while read -d $'\n' module; do
+    test -d "$mm/$module" && require_wc "$module" || continue;
+    remove_basedirs "$module" &&
+    create_links "$mm/$module/modman" &&
     echo -e "Repaired $module.\n"
   done
   exit 0
@@ -577,17 +582,17 @@ REGEX_ACTION='(update|checkout|clone|deploy|\s+)'
 
 # Action is first argument, but should be supported as second for backwards compatibility
 action=''
-if [[ $1 =~ $REGEX_ACTION ]]; then
+if [[ "$1" =~ $REGEX_ACTION ]]; then
   action=$1; shift
 fi
 
 # Discover if modman is run from within a module directory
-cd $_pwd
+cd "$_pwd"
 module=''
-while [ "$(dirname $mm)" != "$(pwd)" ] && [ "$(pwd)" != "/" ]; do
-  modpath=`pwd`
-  if [ "$mm" = "$(dirname $modpath)" ]; then
-    module=$(basename $modpath)
+while [ $(dirname "$mm") != "$(pwd)" ] && [ "$(pwd)" != "/" ]; do
+  modpath=$(pwd)
+  if [ $(dirname "$modpath") = "$mm" ]; then
+    module=$(basename "$modpath")
     break
   fi
   cd ..
@@ -604,7 +609,7 @@ fi
 [ -z "$module" ] && { echo "Not enough arguments (no module specified)"; exit 1; }
 [ -z "$action" ] && { echo "Not enough arguments (no action specified)"; exit 1; }
 
-if [ "$1" == "--force" ]; then
+if [ "$1" = "--force" ]; then
   FORCE=1; shift
 fi
 
@@ -615,8 +620,8 @@ wc_desc=$wc_dir/modman    # path to modman structure descriptor file
 case "$action" in
 
   update)
-    require_wc $module || exit 1
-    cd $wc_dir
+    require_wc "$module" || exit 1
+    cd "$wc_dir"
     if [ -d .svn ]; then
       svn update $@
     elif [ -d .git ]; then
@@ -625,16 +630,16 @@ case "$action" in
     [ $? ] || { echo "failed to update working copy"; rm .modman-old; exit 1; }
 
     remove_dead_links
-    create_links $wc_desc && echo "Update of $module complete."
+    create_links "$wc_desc" && echo "Update of $module complete."
     ;;
 
   checkout|clone)
     FORCE=1
     cd $mm
-    if [[ $module =~ $REGEX_ACTION ]]; then
+    if [[ "$module" =~ $REGEX_ACTION ]]; then
       echo "You cannot $action a module with a name matching $REGEX_ACTION."; exit 1
     fi
-    if [ -d $wc_dir ]; then
+    if [ -d "$wc_dir" ]; then
       echo "A module by that name has already been checked out."; exit 1
     fi
 
@@ -645,32 +650,32 @@ case "$action" in
         echo "Not enough arguments."; exit 1
       fi
     fi
-    if [ "$action" == "checkout" ]; then
-      svn checkout $@ $module
+    if [ "$action" = "checkout" ]; then
+      svn checkout $@ "$module"
     else
-      git clone --recursive $@ $module
+      git clone --recursive $@ "$module"
     fi
 
     if
       [ $? ] &&
-      require_wc $module && cd $wc_dir &&
-      set_basedir $wc_dir $basedir &&
-      create_links $wc_desc
+      require_wc "$module" && cd "$wc_dir" &&
+      set_basedir "$wc_dir" "$basedir" &&
+      create_links "$wc_desc"
     then
       echo "Checkout of $module complete"
     else
-      if [ -d $wc_dir ]; then rm -rf $wc_dir; fi
+      if [ -d "$wc_dir" ]; then rm -rf "$wc_dir"; fi
       echo "Error checking out $module, operation cancelled."
     fi
     remove_dead_links
     ;;
 
   deploy)
-    require_wc $module || exit 1
+    require_wc "$module" || exit 1
     if [ "$1" = "--copy" ]; then
-      copy_over $wc_desc && echo "$module has been deployed under $root with --copy enabled"
+      copy_over "$wc_desc" && echo "$module has been deployed under $root with --copy enabled"
     else
-      create_links $wc_desc && echo "$module has been deployed under $root"
+      create_links "$wc_desc" && echo "$module has been deployed under $root"
     fi
     ;;
 
