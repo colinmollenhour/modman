@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.4.4"
+version="1.4.5"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -126,6 +126,12 @@ Shortcut:
 ------------------------------
 Modman can be run without the module name if the current directory's realpath
 is within a module's path. E.g. \"modman update\" or \"modman deploy\".
+
+Local 'modman' file:
+------------------------------
+You can create a modman file named \"modman.local\" which will also get applied
+like the standard modman file. The intended purpose of this file is to allow you
+to specify additional directives while excluding them from version control.
 
 Author:
 ------------------------------
@@ -500,6 +506,9 @@ elif [ "$1" = "deploy-all" ]; then
     echo "Deploying $module to $root"
     if create_links "$mm/$module/modman"; then
       echo -e "Deployment of '$module' complete.\n"
+      if [ -r "$mm/$module/modman.local" ]; then
+        create_links "$mm/$module/modman.local" && echo "Applied local modman file for $module"
+      fi
     else
       echo_b -e "Error occurred while deploying '$module'.\n"
       errors=$((errors+1))
@@ -542,6 +551,9 @@ elif [ "$1" = "update-all" ]; then
   echo -en "$updated" | while read -d $'\n' module; do
     if create_links "$mm/$module/modman"; then
       echo -e "Deployment of '$module' complete.\n"
+      if [ -r "$mm/$module/modman.local" ]; then
+        create_links "$mm/$module/modman.local" && echo "Applied local modman file for $module"
+      fi
     else
       echo_b -e "Error occurred while deploying '$module'.\n"
       deploy_errors=$((deploy_errors+1))
@@ -563,6 +575,9 @@ elif [ "$1" = "repair" ]; then
     remove_basedirs "$module" &&
     create_links "$mm/$module/modman" &&
     echo -e "Repaired $module.\n"
+    if [ -r "$mm/$module/modman.local" ]; then
+      create_links "$mm/$module/modman.local" && echo "Applied local modman file for $module"
+    fi
   done
   exit 0
 
@@ -631,6 +646,9 @@ case "$action" in
 
     remove_dead_links
     create_links "$wc_desc" && echo "Update of $module complete."
+    if [ -r "$wc_desc.local" ]; then
+      create_links "$wc_desc.local" && echo "Applied local modman file for $module"
+    fi
     ;;
 
   checkout|clone)
@@ -676,6 +694,9 @@ case "$action" in
       copy_over "$wc_desc" && echo "$module has been deployed under $root with --copy enabled"
     else
       create_links "$wc_desc" && echo "$module has been deployed under $root"
+      if [ -r "$wc_desc.local" ]; then
+        create_links "$wc_desc.local" && echo "Applied local modman file for $module"
+      fi
     fi
     ;;
 
