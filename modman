@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.4.5"
+version="1.4.6"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -488,10 +488,10 @@ fi
 # Handle "list" command
 if [ "$1" = "list" ]; then
   if [ -n "$2" ]; then echo "Too many arguments to list command."; exit 1; fi
-  ls -1 "$mm" | while read -d $'\n' module; do
+  while read -d $'\n' module; do
     test -d "$mm/$module" || continue;
     require_wc "$module" && echo "$module"
-  done  
+  done < <(ls -1 "$mm") 
   exit 0
 
 ###############################
@@ -501,7 +501,7 @@ elif [ "$1" = "deploy-all" ]; then
   if [ -n "$2" ]; then echo "Too many arguments to deploy-all command."; exit 1; fi
   remove_dead_links
   errors=0
-  ls -1 "$mm" | while read -d $'\n' module; do
+  while read -d $'\n' module; do
     test -d "$mm/$module" && require_wc "$module" || continue;
     echo "Deploying $module to $root"
     if create_links "$mm/$module/modman"; then
@@ -513,7 +513,7 @@ elif [ "$1" = "deploy-all" ]; then
       echo_b -e "Error occurred while deploying '$module'.\n"
       errors=$((errors+1))
     fi
-  done
+  done < <(ls -1 "$mm")
   echo "Deployed all modules with $errors errors."
   exit 0
 
@@ -525,27 +525,30 @@ elif [ "$1" = "update-all" ]; then
   if [ -n "$2" ]; then echo "Too many arguments to update-all command."; exit 1; fi
   update_errors=0
   updated=''
-  ls -1 "$mm" | while read -d $'\n' module; do
+  while read -d $'\n' module; do
     test -d "$mm/$module" && require_wc "$module" || continue;
     echo "Updating $module"
     cd "$mm/$module"
+    success=0
     if [ -d .svn ]; then
       if [ $FORCE -eq 1 ]; then
-        svn update --force --non-interactive --trust-server-cert
+        svn update --force --non-interactive --trust-server-cert && success=1
       else
-        svn update
+        svn update && success=1
       fi
     elif [ -d .git ]; then
-      git pull && git submodule update --init --recursive
+      git pull && git submodule update --init --recursive && success=1
+    else
+      success=1
     fi
     echo
-    if [ $? ]; then
+    if [ $success -eq 1 ]; then
       updated="${updated}${module}\n"
     else
       echo_b -e "Error occurred while updating '$module'.\n"
       update_errors=$((update_errors+1))
     fi
-  done
+  done < <(ls -1 "$mm")
   remove_dead_links
   deploy_errors=0
   echo -en "$updated" | while read -d $'\n' module; do
@@ -637,12 +640,13 @@ case "$action" in
   update)
     require_wc "$module" || exit 1
     cd "$wc_dir"
+    success=0
     if [ -d .svn ]; then
-      svn update $@
+      svn update $@ && success=1
     elif [ -d .git ]; then
-      git pull $@ && git submodule update --init --recursive
+      git pull $@ && git submodule update --init --recursive && success=1
     fi
-    [ $? ] || { echo "failed to update working copy"; rm .modman-old; exit 1; }
+    [ $success -eq 1 ] || { echo_b "Failed to update working copy of '$module'."; exit 1; }
 
     remove_dead_links
     create_links "$wc_desc" && echo "Update of $module complete."
@@ -668,14 +672,15 @@ case "$action" in
         echo "Not enough arguments."; exit 1
       fi
     fi
+    success=0
     if [ "$action" = "checkout" ]; then
-      svn checkout $@ "$module"
+      svn checkout $@ "$module" && success=1
     else
-      git clone --recursive $@ "$module"
+      git clone --recursive $@ "$module" && success=1
     fi
 
     if
-      [ $? ] &&
+      [ $success -eq 1 ] &&
       require_wc "$module" && cd "$wc_dir" &&
       set_basedir "$wc_dir" "$basedir" &&
       create_links "$wc_desc"
