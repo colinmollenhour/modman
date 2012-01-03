@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.4.6"
+version="1.4.7"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -537,7 +537,11 @@ elif [ "$1" = "update-all" ]; then
         svn update && success=1
       fi
     elif [ -d .git ]; then
-      git pull && git submodule update --init --recursive && success=1
+      if [ $FORCE -eq 1 ]; then
+        git pull --force && git submodule update --init --recursive && success=1
+      else
+        git pull && git submodule update --init --recursive && success=1
+      fi
     else
       success=1
     fi
@@ -642,9 +646,17 @@ case "$action" in
     cd "$wc_dir"
     success=0
     if [ -d .svn ]; then
-      svn update $@ && success=1
+      if [ $FORCE -eq 1 ]; then
+        svn update --force --non-interactive --trust-server-cert && success=1
+      else
+        svn update && success=1
+      fi
     elif [ -d .git ]; then
-      git pull $@ && git submodule update --init --recursive && success=1
+      if [ $FORCE -eq 1 ]; then
+        git pull --force && git submodule update --init --recursive && success=1
+      else
+        git pull && git submodule update --init --recursive && success=1
+      fi
     fi
     [ $success -eq 1 ] || { echo_b "Failed to update working copy of '$module'."; exit 1; }
 
