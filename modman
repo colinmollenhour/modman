@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.4.7"
+version="1.4.8"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -48,7 +48,7 @@ Module Commands:
   update             update module using the appropriate SCM
   deploy             deploy an existing module (SCM not required or used)
   deploy --copy      deploy with hardlinks instead of symlinks (not recommended)
-  [--force]          overwrite existing files, ignore untrusted cert warnings
+  [--force]          overwrite existing files/uncommitted changes and ignore untrusted cert warnings
   [--basedir <path>] on checkout/clone, specifies a base for module deployment
   [<SCM options>]    specify additional parameters to SCM checkout/clone
 "
@@ -538,7 +538,9 @@ elif [ "$1" = "update-all" ]; then
       fi
     elif [ -d .git ]; then
       if [ $FORCE -eq 1 ]; then
-        git pull --force && git submodule update --init --recursive && success=1
+        tracking_branch=$(git rev-parse --symbolic-full-name --abbrev-ref @{u})
+        [[ -z $tracking_branch ]] || { echo "Could not resolve remote tracking branch."; exit 1; }
+        git fetch --force && git reset --hard $tracking_branch && git submodule update --init --recursive && success=1
       else
         git pull && git submodule update --init --recursive && success=1
       fi
