@@ -539,7 +539,7 @@ elif [ "$1" = "update-all" ]; then
     elif [ -d .git ]; then
       if [ $FORCE -eq 1 ]; then
         tracking_branch=$(git rev-parse --symbolic-full-name --abbrev-ref @{u})
-        [[ -z $tracking_branch ]] || { echo "Could not resolve remote tracking branch."; exit 1; }
+        [[ -n $tracking_branch ]] || { echo "Could not resolve remote tracking branch."; exit 1; }
         git fetch --force && git reset --hard $tracking_branch && git submodule update --init --recursive && success=1
       else
         git pull && git submodule update --init --recursive && success=1
@@ -655,7 +655,9 @@ case "$action" in
       fi
     elif [ -d .git ]; then
       if [ $FORCE -eq 1 ]; then
-        git pull --force && git submodule update --init --recursive && success=1
+        tracking_branch=$(git rev-parse --symbolic-full-name --abbrev-ref @{u})
+        [[ -n $tracking_branch ]] || { echo "Could not resolve remote tracking branch."; exit 1; }
+        git fetch --force && git reset --hard $tracking_branch && git submodule update --init --recursive && success=1
       else
         git pull && git submodule update --init --recursive && success=1
       fi
