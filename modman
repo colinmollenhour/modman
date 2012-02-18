@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.4.8"
+version="1.4.9"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -602,7 +602,7 @@ fi
 # Handle all other module-specific commands
 #############################################
 
-REGEX_ACTION='(update|checkout|clone|deploy|\s+)'
+REGEX_ACTION='(^(update|checkout|clone|deploy)$| )'
 
 # Action is first argument, but should be supported as second for backwards compatibility
 action=''
