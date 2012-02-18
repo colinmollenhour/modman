@@ -6,8 +6,10 @@ making it easy to deploy is now much, much easier. Development of this script
 was inspired by Magento which forces you to mix your extension files all
 throughout the core code directories. With modman, you can specify in a text
 file where you want your directories and files to be mapped to, and it will
-create symlinks for you so that all of your versioned code is kept in a
-directory that is easy to maintain and deploy.
+maintain symlinks for you so that your code is easy to hack and deploy.
+
+All of your cloned/checked-out modules will be kept in a directory named
+`.modman` in the location where you run `modman init`.
 
 ## Requirements
 
