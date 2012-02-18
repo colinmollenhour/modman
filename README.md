@@ -19,8 +19,33 @@ directory that is easy to maintain and deploy.
 
 ## Installation
 
-  * [http://code.google.com/p/module-manager/downloads/list Download] or [http://code.google.com/p/module-manager/source/checkout checkout]
-  * Move to or create link in your path
+Modman is simply a bash script so to use it you just need to place it in your $PATH
+and change it's mode to executable. Examples:
+
+#### Git method (with sudo privilege):
+```
+sudo git clone git://github.com/colinmollenhour/modman.git /opt/modman
+sudo ln -s /opt/modman/modman /usr/local/bin/
+```
+
+#### Git method (without sudo privilege):
+```
+git clone git://github.com/colinmollenhour/modman.git ~/.modman-repo
+mkdir -p ~/bin
+ln -s ~/.modman-repo/modman ~/bin
+echo 'PATH="$HOME/bin:$PATH"' >> ~/.profile
+. ~/.profile
+```
+
+#### Download method (without sudo privilege):
+```
+wget https://github.com/colinmollenhour/modman/raw/master/modman
+mkdir -p ~/bin
+mv modman ~/bin
+chmod +x ~/bin/modman
+echo 'PATH="$HOME/bin:$PATH"' >> ~/.profile
+. ~/.profile
+```
 
 ## Getting Started
 
@@ -37,8 +62,8 @@ the "deploy" command.
 
 * Colin Mollenhour
 * http://colin.mollenhour.com/
-* [https://twitter.com/colinmollenhour] @colinmollenhour
-* [https://github.com/colinmollenhour Follow me on github!]
+* [@colinmollenhour](https://twitter.com/colinmollenhour)
+* [Follow me on github!](https://github.com/colinmollenhour)
 
 ## License
 
