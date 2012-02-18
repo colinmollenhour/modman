@@ -17,7 +17,7 @@
 #
 #   System Requirements:
 #    - bash
-#    - filesystem and project or web server must support symlinks (except for deploy --copy)
+#    - filesystem and project or web server must support symlinks
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
