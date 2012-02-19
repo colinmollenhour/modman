@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.4.9"
+version="1.5.0"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -41,10 +41,11 @@ Global Commands:
   [--force]          overwrite existing files, ignore untrusted cert warnings
 
 Module Commands:
-  $script <command> <module> [--force] [--basedir <path>] [<SCM options>]
+  $script <command> [<module>] [--force] [--basedir <path>] [[--] <VCS options>]
 ------------------------------
-  checkout <src>     checkout a new modman compatible module using subversion
-  clone <src>        checkout a new modman compatible module using git clone
+  checkout <src>     checkout a new modman-compatible module using subversion
+  clone <src>        checkout a new modman-compatible module using git clone
+  link <path>        link to a module that already exists on the local filesystem
   update             update module using the appropriate SCM
   deploy             deploy an existing module (SCM not required or used)
   deploy --copy      deploy with hardlinks instead of symlinks (not recommended)
@@ -62,8 +63,15 @@ This allows you to for example specify a --username (svn) or a --branch (git).
 See 'svn help checkout' and 'git help clone' for a full list of options.
 Both svn:externals and git submodules will be automatically included.
 
+To link to modules that already exist on the local file system you can use
+the 'link' command. The 'update' command will be supported the same as if the
+module had been created using the checkout or clone command. For example:
+
+    $ modman link ~/projects/My_Module
+    $ modman update My_Module
+
 By default, if a module being checked out contains symlink mappings that
-conflict with existing files an error will be thrown. Use --force to cause
+conflict with existing files, an error will be thrown. Use --force to cause
 any existing files or directories that conflict to be removed. Be careful!
 
 Writing modman modules:
@@ -232,7 +240,7 @@ set_basedir ()
   local basedir=${2##/}
   basedir=${basedir%%/}
   if [ -n "$basedir" ]; then
-    echo -e "# This file was created by modman. Module base directory:\n$import_base" \
+    echo -e "# This file was created by modman. Module base directory:\n$basedir" \
       > "$module_dir/.basedir"
     if ! [ $? ]; then
       echo "ERROR: Could not write to file: $module_dir/.basedir."
@@ -423,6 +431,7 @@ FD=3  # Emulate a stack for file descriptors starting at 3
 
 ###########################################################################
 # Similar to create_links but creates hardlinks instead of using symlinks
+# This feature is not fully supported and may have bugs
 copy_over ()
 {
   grep -v '^#' "$1" | grep -v '^\s*$' | \
@@ -602,17 +611,41 @@ fi
 # Handle all other module-specific commands
 #############################################
 
-REGEX_ACTION='(^(update|checkout|clone|deploy)$| )'
+REGEX_ACTION='^(update|checkout|clone|deploy|link)$'
+REGEX_NEW_MODULE='^(checkout|clone|link)$'
+REGEX_BAD_MODULE="($REGEX_ACTION| )"
+REGEX_MODULE='^[a-zA-Z0-9_-]+$'
 
-# Action is first argument, but should be supported as second for backwards compatibility
-action=''
-if [[ "$1" =~ $REGEX_ACTION ]]; then
-  action=$1; shift
+# Action is first argument
+action=$1; shift
+if ! [[ "$action" =~ $REGEX_ACTION ]]; then
+  echo "Invalid action specified: $action"
+  exit 1
 fi
+
+module=''
+src=''
+basedir=''
+
+# Get optional args
+while [[ 1 ]]; do
+  case "$1" in
+    --force)
+      FORCE=1; shift
+      ;;
+    --basedir)
+      shift; basedir="$1"; shift
+      if ! [ -n "$basedir" -a -d "$root/$basedir" ]; then
+        echo "Specified --basedir does not exist: $basedir"; exit 1
+      fi
+      ;;
+    *)
+      break
+  esac
+done
 
 # Discover if modman is run from within a module directory
 cd "$_pwd"
-module=''
 while [ $(dirname "$mm") != "$(pwd)" ] && [ "$(pwd)" != "/" ]; do
   modpath=$(pwd)
   if [ $(dirname "$modpath") = "$mm" ]; then
@@ -622,20 +655,52 @@ while [ $(dirname "$mm") != "$(pwd)" ] && [ "$(pwd)" != "/" ]; do
   cd ..
 done
 
-# If no module discovered or valid module is specified on command line
-if [ -z "$module" ] || [ -n "$1" -a -d "$mm/$1" ]; then
-  module=$1; shift          # module name is first argument
-fi
-if [ -z "$action" ]; then
-  action=$1; shift          # action is next argument (legacy)
+# If valid module is specified on command line
+if [ -z "$module" -a -n "$1" -a -d "$mm/$1" ] || [[ "$1" =~ $REGEX_MODULE ]]; then
+  module=$1; shift
 fi
 
-[ -z "$module" ] && { echo "Not enough arguments (no module specified)"; exit 1; }
-[ -z "$action" ] && { echo "Not enough arguments (no action specified)"; exit 1; }
-
-if [ "$1" = "--force" ]; then
-  FORCE=1; shift
+# If new module name is not given, extract from end of next argument
+if [ -z "$module" ] && [[ "$action" =~ $REGEX_NEW_MODULE ]]; then
+  if [ $# -eq 1 -o "${2:0:2}" = "--" ]; then
+    src="$1"; shift
+    module=$(basename "$src")
+    case "$action" in
+      clone)
+        module=${module%.git}
+        ;;
+      checkout|link)
+        module=${module%%/}
+        ;;
+    esac
+  fi
 fi
+
+# Module must be next argument
+if [ -z "$module" -a -n "$1" ]; then
+  module=$1; shift
+fi
+if [ -z "$module" ]; then
+  echo "Not enough arguments (no module specified)"
+  exit 1
+fi
+
+# Get optional args
+while [[ 1 ]]; do
+  case "$1" in
+    --force)
+      FORCE=1; shift
+      ;;
+    --basedir)
+      shift; basedir="$1"; shift
+      if ! [ -n "$basedir" -a -d "$root/$basedir" ]; then
+        echo "Specified --basedir does not exist: $basedir"; exit 1
+      fi
+      ;;
+    *)
+      break
+  esac
+done
 
 cd $_pwd;                 # restore old root
 wc_dir=$mm/$module        # working copy directory for module
@@ -671,28 +736,38 @@ case "$action" in
     fi
     ;;
 
-  checkout|clone)
+  checkout|clone|link)
     FORCE=1
     cd $mm
-    if [[ "$module" =~ $REGEX_ACTION ]]; then
-      echo "You cannot $action a module with a name matching $REGEX_ACTION."; exit 1
+    if [[ "$module" =~ $REGEX_BAD_MODULE ]]; then
+      echo "You cannot $action a module with a name matching $REGEX_BAD_MODULE."; exit 1
     fi
     if [ -d "$wc_dir" ]; then
-      echo "A module by that name has already been checked out."; exit 1
+      echo "A module named '$module' has already been checked out."; exit 1
     fi
 
-    basedir=''
-    if [ "$1" = "--basedir" ]; then
-      shift; basedir="$1"; shift
-      if [ -z "$basedir" -o -z "$1" ]; then
-        echo "Not enough arguments."; exit 1
-      fi
+    if [ -z "$src" ]; then
+      src="$1"; shift
     fi
+    if [ -z "$src" -o "$src" = "--" ]; then
+      echo "You must specify a source for the '$action' command."; exit 1
+    fi
+    if [ "$1" = "--" ]; then shift; fi
+    
     success=0
+    verb=''
     if [ "$action" = "checkout" ]; then
-      svn checkout $@ "$module" && success=1
-    else
-      git clone --recursive $@ "$module" && success=1
+      verb='checked out'
+      svn checkout "$src" $@ "$module" && success=1
+    elif [ "$action" = "clone" ]; then
+      verb='cloned'
+      #git clone --recursive "$src" $@ "$module" && success=1
+      echo "git clone --recursive \"$src\" $@ \"$module\""
+    elif [ "$action" = "link" ]; then
+      verb='linked'
+      if [ -d "$src" ]; then
+        ln -s "$src" "$module" && success=1
+      fi
     fi
 
     if
@@ -701,10 +776,13 @@ case "$action" in
       set_basedir "$wc_dir" "$basedir" &&
       create_links "$wc_desc"
     then
-      echo "Checkout of $module complete"
+      if [ -n "$basedir" ]; then
+        using_basedir=" using base directory '$basedir'"
+      fi
+      echo "Successfully $verb new module '$module'$using_basedir"
     else
       if [ -d "$wc_dir" ]; then rm -rf "$wc_dir"; fi
-      echo "Error checking out $module, operation cancelled."
+      echo "Error trying to $action new module '$module', operation cancelled."
     fi
     remove_dead_links
     ;;
@@ -723,8 +801,8 @@ case "$action" in
 
   *)
     echo -e "$usage"
-    echo_b "Invalid action: $action";
-    exit;
+    echo_b "Invalid action: $action"
+    exit 1
 
 esac
 
