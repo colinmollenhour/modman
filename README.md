@@ -52,7 +52,8 @@ echo 'PATH="$HOME/bin:$PATH"' >> ~/.profile
 ## Getting Started
 
 Run `modman --help` to get the basic usage summary or `modman --tutorial` to
-see a brief tutorial.
+see a brief tutorial. For more in-depth information please see the
+[Modman Wiki](https://github.com/colinmollenhour/modman/wiki)
 
 ## Version Control Systems
 
