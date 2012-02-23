@@ -17,13 +17,13 @@ _modman()
 			opts="init --help --version --tutorial"
 			if [ -n "$mm" ]; then
 				opts="${opts} list update-all deploy-all repair clean"
-				opts="${opts} checkout clone deploy update"
+				opts="${opts} checkout clone link deploy update"
 			fi
 			;;
 		init | --help | --version | --tutorial | list | repair | --force | --copy)
 			opts=""
 			;;
-		update-all | deploy-all | checkout | clone)
+		update-all | deploy-all | checkout | clone | link)
 			opts="--force"
 			;;
 		deploy | update)
