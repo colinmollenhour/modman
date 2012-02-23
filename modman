@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.5.0"
+version="1.5.1"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -761,8 +761,7 @@ case "$action" in
       svn checkout "$src" $@ "$module" && success=1
     elif [ "$action" = "clone" ]; then
       verb='cloned'
-      #git clone --recursive "$src" $@ "$module" && success=1
-      echo "git clone --recursive \"$src\" $@ \"$module\""
+      git clone --recursive "$src" $@ "$module" && success=1
     elif [ "$action" = "link" ]; then
       verb='linked'
       if [ -d "$src" ]; then
