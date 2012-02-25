@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.5.1"
+version="1.5.2"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -83,8 +83,14 @@ go where relative to the directory where modman was initialized.
    # Comments are supported, begin a line with a hash
    code                   app/code/local/My/Module/
    design                 app/design/frontend/default/default/mymodule/
-   locale/My_Module.xml   app/locale/en_US/My_Module.xml
-   My_Module.xml          app/etc/modules/My_Module.xml
+
+   # Source and destination can have different names.
+   en_US.csv              app/locale/en_US/My_Module.csv
+
+   # Destination file name is not required if the same as the source.
+   My_Module.xml          app/etc/modules/
+
+   # Bash extended glob patterns supported.
    skin/css/*             skin/frontend/base/default/css/
    skin/js/*              skin/frontend/base/default/js/
 
@@ -386,6 +392,11 @@ create_links ()
       fi
       echo -e "WARNING: Symlink target does not exist ($relpath):\n $line"
       continue
+    fi
+
+    # Allow destination to be a dir when src is a file
+    if [ -f "$src" ] && [ -d "$dest" -o "/" = ${real: -1} ]; then
+      dest="$dest/$(basename "$src")"
     fi
 
     # Handle cases where files already exist at the destination
