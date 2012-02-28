@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Module Manager
 #
 #   Copyright 2009 Colin Mollenhour
