@@ -21,33 +21,12 @@ All of your cloned/checked-out modules will be kept in a directory named
 
 ## Installation
 
+```
+bash < <(wget -O - https://raw.github.com/tonigrigoriu/modman/master/modman-installer)
+```
+
 Modman is simply a bash script so to use it you just need to place it in your $PATH
-and change it's mode to executable. Examples:
-
-#### Git method (with sudo privilege):
-```
-sudo git clone git://github.com/colinmollenhour/modman.git /opt/modman
-sudo ln -s /opt/modman/modman /usr/local/bin/
-```
-
-#### Git method (without sudo privilege):
-```
-git clone git://github.com/colinmollenhour/modman.git ~/.modman-repo
-mkdir -p ~/bin
-ln -s ~/.modman-repo/modman ~/bin
-echo 'PATH="$HOME/bin:$PATH"' >> ~/.profile
-. ~/.profile
-```
-
-#### Download method (without sudo privilege):
-```
-wget https://github.com/colinmollenhour/modman/raw/master/modman
-mkdir -p ~/bin
-mv modman ~/bin
-chmod +x ~/bin/modman
-echo 'PATH="$HOME/bin:$PATH"' >> ~/.profile
-. ~/.profile
-```
+and change it's mode to executable.
 
 ## Getting Started
 
