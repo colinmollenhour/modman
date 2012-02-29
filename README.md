@@ -25,7 +25,11 @@ All of your cloned/checked-out modules will be kept in a directory named
 bash < <(wget -O - https://raw.github.com/tonigrigoriu/modman/master/modman-installer)
 ```
 
-Modman is simply a bash script so to use it you just need to place it in your $PATH
+```
+source ~/.profile
+```
+
+Note: modman is simply a bash script, so to use it you just need to place it in your $PATH
 and change it's mode to executable.
 
 ## Getting Started
