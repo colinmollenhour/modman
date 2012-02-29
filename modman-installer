@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+if [ ! -d "$HOME/bin" ] ; then
+    mkdir $HOME/bin
+
+    if [ -f $HOME/.profile ]; then
+        . $HOME/.profile
+
+        if [[ ":$PATH:" != *":$HOME/bin:"* ]]; then
+            echo -e '\nPATH="$HOME/bin:$PATH"' >> $HOME/.profile
+        fi
+    fi
+fi
+
+wget -O $HOME/bin/modman https://raw.github.com/colinmollenhour/modman/master/modman
+
+chmod +x $HOME/bin/modman
