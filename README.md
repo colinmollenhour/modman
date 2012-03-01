@@ -22,7 +22,13 @@ All of your cloned/checked-out modules will be kept in a directory named
 ## Installation
 
 ```
-bash < <(wget -O - https://raw.github.com/tonigrigoriu/modman/master/modman-installer)
+bash < <(wget -O - https://raw.github.com/colinmollenhour/modman/master/modman-installer)
+```
+
+or
+
+```
+bash < <(curl -s https://raw.github.com/colinmollenhour/modman/master/modman-installer)
 ```
 
 ```
