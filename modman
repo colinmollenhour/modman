@@ -675,15 +675,9 @@ fi
 if [ -z "$module" ] && [[ "$action" =~ $REGEX_NEW_MODULE ]]; then
   if [ $# -eq 1 -o "${2:0:2}" = "--" ]; then
     src="$1"; shift
+    module=${module//:/\/}    # replace : with / for basename in case of git SSH
     module=$(basename "$src")
-    case "$action" in
-      clone)
-        module=${module%.git}
-        ;;
-      checkout|link)
-        module=${module%%/}
-        ;;
-    esac
+    module=${module%.git}
   fi
 fi
 
