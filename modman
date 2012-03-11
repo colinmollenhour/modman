@@ -182,15 +182,19 @@ fi
 
 
 #############################################################
-# Echo a line in bold font
+# Echo in bold font if stdout is a terminal
+ISTTY=0; if [ -t 1 ]; then ISTTY=1; fi
+bold () { if [ $ISTTY -eq 1 ]; then tput bold; fi; }
+unbold () { if [ $ISTTY -eq 1 ]; then tput sgr0; fi; }
 echo_b ()
 {
   if [ "$1" = "-e" ]; then
-    echo -e "$(tput bold)$2$(tput sgr0)"
+    echo -e "$(bold)$2$(unbold)"
   else
-    echo "$(tput bold)$1$(tput sgr0)"
+    echo "$(bold)$1$(unbold)"
   fi
 }
+
 
 #############################################################
 # Check for existence of a module directory and modman file
@@ -261,7 +265,7 @@ set_basedir ()
 #   Creates the symlinks as described
 #   Imports external modman files (@import)
 #   Runs shell commands (@shell)
-create_links ()
+apply_modman_file ()
 {
   local module=$1
   local module_dir=$(dirname "$module")
@@ -317,7 +321,7 @@ create_links ()
         fi
       fi
 
-      create_links "$import" "$import_base/" || return 1
+      apply_modman_file "$import" "$import_base/" || return 1
       continue
     fi
 
@@ -335,51 +339,14 @@ create_links ()
     fi
 
     # Create symlink to target
-    src=$module_dir/$target
-    dest=$root/${basedir}${real%/}
+    local src=$module_dir/$target
+    local dest=$root/${basedir}${real%/}
 
     # Handle globbing (extended globbing enabled)
     shopt -s extglob
     if ! [ -e "$src" ] && [ $(ls $src 2> /dev/null | wc -l) -gt 0 ]; then
       for _src in $src; do
-        _dest=$dest/${_src##*/}
-
-        # Handle cases where files already exist at the destination or link does not match expected destination
-        if [ -e "$_dest" ];
-        then
-          if ! [ -L "$_dest" ] && [ $FORCE -eq 0 ]; then
-            echo_b "CONFLICT: $_dest mapped by $target already exists and is not a link."
-            echo_b "  $line"
-            echo   "(Run with $(tput bold)--force$(tput sgr0) to force removal of existing files.)"
-            return 1
-          else
-            destLink=$(readlink $_dest)
-            if ! [ -L "$_dest" ] || [ "$_src" != "$destLink" ]; then
-              fileType=$(stat -c %F "$_dest")
-              echo "Removing conflicting $fileType: $_dest"
-              rm -rf "$_dest" || return 1
-            fi
-          fi
-        fi
-
-        # Create links if they do not already exist
-        if ! [ -e "$_dest" ];
-        then
-          # Delete conflicting symlinks that are broken
-          if [ -L "$_dest" ]; then
-            rm -f "$_dest"
-          fi
-          # Create parent directories
-          mkdir -p "${_dest%/*}"
-          # Create symlink
-          if ln -s "$_src" "$_dest"
-          then
-            printf " Applied: %-30s  %s\n" "$target" "${real%/}/${_src##*/}"
-          else
-            echo_b -e "ERROR: Unable to create symlink ($_dest):\n $line"
-            return 1
-          fi
-        fi
+        create_symlink "$_src" "$dest/${_src##*/}" "$target" "${real%/}/${_src##*/}" "$line" || return 1
       done
       continue
     fi # end Handle globbing
@@ -387,10 +354,7 @@ create_links ()
     # Handle aliases that do not exist
     if ! [ -e "$src" ];
     then
-      if [ -L "$dest" ]; then
-        rm "$dest" && echo "Removed bad link to $real"
-      fi
-      echo -e "WARNING: Symlink target does not exist ($relpath):\n $line"
+      echo -e "$(bold)WARNING:$(unbold) Symlink target does not exist ($relpath):\n $line"
       continue
     fi
 
@@ -400,36 +364,7 @@ create_links ()
     fi
 
     # Handle cases where files already exist at the destination
-    if [ -e "$dest" ] && ! [ -L "$dest" ];
-    then
-      if [ $FORCE -eq 0 ]; then
-        echo_b "CONFLICT: $real mapped by $target already exists and is not a link."
-        echo_b "  $line"
-        echo   "(Run with $(tput bold)--force$(tput sgr0) to force removal of existing files.)"
-        return 1
-      else
-        rm -rf "$dest"
-      fi
-    fi
-
-    # Create links if they do not already exist
-    if ! [ -e "$dest" ];
-    then
-      # Delete conflicting symlinks that are broken
-      if [ -L "$dest" ]; then
-        rm -f "$dest"
-      fi
-      # Create parent directories
-      mkdir -p "${dest%/*}"
-      # Create symlink
-      if ln -s "$src" "$dest"
-      then
-        printf " Applied: %-30s  %s\n" "$target" "$real"
-      else
-        echo_b -e "ERROR: Unable to create symlink ($dest):\n $line"
-        return 1
-      fi
-    fi
+    create_symlink "$src" "$dest" "$target" "$real" "$line" || return 1
   done
 
   # Close file descriptor and decrement counter
@@ -441,19 +376,59 @@ create_links ()
 FD=3  # Emulate a stack for file descriptors starting at 3
 
 ###########################################################################
-# Similar to create_links but creates hardlinks instead of using symlinks
+# Creates a symlink with lots of error-checking
+create_symlink ()
+{
+  local src="$1"; local dest="$2"; local target="$3"; local real="$4"; local line="$5"
+
+  # Handle cases where files already exist at the destination or link does not match expected destination
+  if [ -e "$dest" ];
+  then
+    if ! [ -L "$dest" ] && [ $FORCE -eq 0 ]; then
+      echo_b "CONFLICT: $(stat -c %F "$dest") already exists and is not a symlink:"
+      echo_b " $line"
+      echo   "(Run with $(bold)--force$(unbold) to force removal of existing files and directories.)"
+      return 1
+    elif ! [ -L "$dest" ] || [ "$src" != "$(readlink $dest)" ]; then
+      echo "$(bold)WARNING:$(unbold) Removing conflicting $(stat -c %F "$dest"): $dest"
+      rm -rf "$dest" || return 1
+    fi
+  fi
+
+  # Create links if they do not already exist
+  if ! [ -e "$dest" ];
+  then
+    # Delete conflicting symlinks that are broken
+    if [ -L "$dest" ]; then
+      rm -f "$dest"
+    fi
+    # Create parent directories and symlink
+    if mkdir -p "${dest%/*}" && ln -s "$src" "$dest"
+    then
+      printf " Applied: %-30s  %s\n" "$target" "$real"
+    else
+      echo_b -e "ERROR: Unable to create symlink ($dest):\n $line"
+      return 1
+    fi
+  fi
+  return 0
+}
+
+###########################################################################
+# Similar to apply_modman_file but creates hardlinks instead of using symlinks
 # This feature is not fully supported and may have bugs
 copy_over ()
 {
-  grep -v '^#' "$1" | grep -v '^\s*$' | \
+  local module="$1"
+  grep -v '^#' "$module" | grep -v '^\s*$' | \
   while read svn real; do
-    module_dir=$(dirname "$1")
-    src=$module_dir/$svn
-    dest=$(echo -n "$root/${real%/}" | tr -d '\r')
+    local module_dir=$(dirname "$module")
+    local src=$module_dir/$svn
+    local dest=$(echo -n "$root/${real%/}" | tr -d '\r')
 
     # Handle @import case
     if [ "$svn" = "@import" ]; then
-      import=$module_dir/$real/modman
+      local import=$module_dir/$real/modman
       if ! [ -r "$import" ]; then
         echo "Failed \"@import $real\", $import not found."; return 1
       else
@@ -463,7 +438,7 @@ copy_over ()
     fi
 
     # Copy the files to their respective locations using hardlinks for efficiency
-    destDir=$(dirname "$dest")
+    local destDir=$(dirname "$dest")
     if ! [ -e "$destDir" ]; then
       mkdir --parents "$destDir"
     else
@@ -524,10 +499,10 @@ elif [ "$1" = "deploy-all" ]; then
   while read -d $'\n' module; do
     test -d "$mm/$module" && require_wc "$module" || continue;
     echo "Deploying $module to $root"
-    if create_links "$mm/$module/modman"; then
+    if apply_modman_file "$mm/$module/modman"; then
       echo -e "Deployment of '$module' complete.\n"
       if [ -r "$mm/$module/modman.local" ]; then
-        create_links "$mm/$module/modman.local" && echo "Applied local modman file for $module"
+        apply_modman_file "$mm/$module/modman.local" && echo "Applied local modman file for $module"
       fi
     else
       echo_b -e "Error occurred while deploying '$module'.\n"
@@ -578,10 +553,10 @@ elif [ "$1" = "update-all" ]; then
   remove_dead_links
   deploy_errors=0
   echo -en "$updated" | while read -d $'\n' module; do
-    if create_links "$mm/$module/modman"; then
+    if apply_modman_file "$mm/$module/modman"; then
       echo -e "Deployment of '$module' complete.\n"
       if [ -r "$mm/$module/modman.local" ]; then
-        create_links "$mm/$module/modman.local" && echo "Applied local modman file for $module"
+        apply_modman_file "$mm/$module/modman.local" && echo "Applied local modman file for $module"
       fi
     else
       echo_b -e "Error occurred while deploying '$module'.\n"
@@ -602,10 +577,10 @@ elif [ "$1" = "repair" ]; then
   ls -1 "$mm" | while read -d $'\n' module; do
     test -d "$mm/$module" && require_wc "$module" || continue;
     remove_basedirs "$module" &&
-    create_links "$mm/$module/modman" &&
+    apply_modman_file "$mm/$module/modman" &&
     echo -e "Repaired $module.\n"
     if [ -r "$mm/$module/modman.local" ]; then
-      create_links "$mm/$module/modman.local" && echo "Applied local modman file for $module"
+      apply_modman_file "$mm/$module/modman.local" && echo "Applied local modman file for $module"
     fi
   done
   exit 0
@@ -735,9 +710,9 @@ case "$action" in
     [ $success -eq 1 ] || { echo_b "Failed to update working copy of '$module'."; exit 1; }
 
     remove_dead_links
-    create_links "$wc_desc" && echo "Update of $module complete."
+    apply_modman_file "$wc_desc" && echo "Update of $module complete."
     if [ -r "$wc_desc.local" ]; then
-      create_links "$wc_desc.local" && echo "Applied local modman file for $module"
+      apply_modman_file "$wc_desc.local" && echo "Applied local modman file for $module"
     fi
     ;;
 
@@ -778,7 +753,7 @@ case "$action" in
       [ $success -eq 1 ] &&
       require_wc "$module" && cd "$wc_dir" &&
       set_basedir "$wc_dir" "$basedir" &&
-      create_links "$wc_desc"
+      apply_modman_file "$wc_desc"
     then
       if [ -n "$basedir" ]; then
         using_basedir=" using base directory '$basedir'"
@@ -796,9 +771,9 @@ case "$action" in
     if [ "$1" = "--copy" ]; then
       copy_over "$wc_desc" && echo "$module has been deployed under $root with --copy enabled"
     else
-      create_links "$wc_desc" && echo "$module has been deployed under $root"
+      apply_modman_file "$wc_desc" && echo "$module has been deployed under $root"
       if [ -r "$wc_desc.local" ]; then
-        create_links "$wc_desc.local" && echo "Applied local modman file for $module"
+        apply_modman_file "$wc_desc.local" && echo "Applied local modman file for $module"
       fi
     fi
     ;;
