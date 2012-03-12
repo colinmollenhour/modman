@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.5.2"
+version="1.5.3"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -30,7 +30,7 @@ Global Commands:
   $script <command> [--force]
 ------------------------------
   init [basedir]     initialize the pwd (or [basedir]) as the modman deploy root
-  list               list all valid modules that are currently checked out
+  list [--absolute]  list all valid modules that are currently checked out
   update-all         update all modules that are currently checked out
   deploy-all         deploy all modules (no VCS interaction)
   repair             rebuild all modman-created symlinks (no updates performed)
@@ -482,10 +482,14 @@ fi
 ###############################
 # Handle "list" command
 if [ "$1" = "list" ]; then
-  if [ -n "$2" ]; then echo "Too many arguments to list command."; exit 1; fi
+  shift
+  prefix=''
+  if [ "$1" = "--absolute" ]; then shift; prefix="$mm/"; fi
+  if [ -n "$1" ]; then echo "Too many arguments to list command."; exit 1; fi
   while read -d $'\n' module; do
-    test -d "$mm/$module" || continue;
-    require_wc "$module" && echo "$module"
+    if [ -d "$mm/$module" -a -e "$mm/$module/modman" ]; then
+      require_wc "$module" && echo "${prefix}$module"
+    fi
   done < <(ls -1 "$mm") 
   exit 0
 
