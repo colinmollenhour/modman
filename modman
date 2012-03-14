@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.5.3"
+version="1.5.4"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -31,6 +31,7 @@ Global Commands:
 ------------------------------
   init [basedir]     initialize the pwd (or [basedir]) as the modman deploy root
   list [--absolute]  list all valid modules that are currently checked out
+  status             show VCS 'status' command for all modules
   update-all         update all modules that are currently checked out
   deploy-all         deploy all modules (no VCS interaction)
   repair             rebuild all modman-created symlinks (no updates performed)
@@ -168,7 +169,7 @@ if [ "$1" = "init" ]; then
   exit 0
 ###########################
 # Handle "--help" command
-elif [ "$1" = "--help" ]; then
+elif [ "$1" = "--help" -o "$1" = "" ]; then
   echo -e "$usage"; exit 0
 ###########################
 # Handle "--tutorial" command
@@ -488,7 +489,28 @@ if [ "$1" = "list" ]; then
   if [ -n "$1" ]; then echo "Too many arguments to list command."; exit 1; fi
   while read -d $'\n' module; do
     if [ -d "$mm/$module" -a -e "$mm/$module/modman" ]; then
-      require_wc "$module" && echo "${prefix}$module"
+      echo "${prefix}$module"
+    fi
+  done < <(ls -1 "$mm") 
+  exit 0
+
+###############################
+# Handle "status" command
+elif [ "$1" = "status" ]; then
+  shift
+  if [ -n "$1" ]; then echo "Too many arguments to status command."; exit 1; fi
+  while read -d $'\n' module; do
+    if [ -d "$mm/$module" -a -e "$mm/$module/modman" ]; then
+      cd "$mm/$module"
+      echo_b "-- $module --"
+      if [ -d "$mm/$module/.git" ]; then
+        git status
+      elif [ -d "$mm/$module/.svn" ]; then
+        svn status
+      else
+        echo "Not a git or svn repository."
+      fi
+      echo
     fi
   done < <(ls -1 "$mm") 
   exit 0

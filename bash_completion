@@ -17,7 +17,7 @@ _modman()
 		modman)
 			opts="init --help --version --tutorial"
 			if [ -n "$mm" ]; then
-				opts="${opts} list update-all deploy-all repair clean"
+				opts="${opts} list status update-all deploy-all repair clean"
 				opts="${opts} checkout clone link deploy update"
 			fi
 			;;
