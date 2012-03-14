@@ -10,6 +10,7 @@ _modman()
 	COMPREPLY=()
 	cur="${COMP_WORDS[COMP_CWORD]}"
 	prev="${COMP_WORDS[COMP_CWORD-1]}"
+	if [ $COMP_CWORD -eq 1 ]; then prev='modman'; fi
 	mm=$(_modman_get_mm)
 	module=$(_modman_get_module)
 	case "${prev}" in
