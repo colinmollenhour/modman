@@ -390,7 +390,7 @@ create_symlink ()
       echo_b " $line"
       echo   "(Run with $(bold)--force$(unbold) to force removal of existing files and directories.)"
       return 1
-    elif ! [ -L "$dest" ] || [ "$src" != "$(readlink $dest)" ]; then
+    elif ! [ -L "$dest" ] || [ "$src" != "$(readlink "$dest")" ]; then
       echo "$(bold)WARNING:$(unbold) Removing conflicting $(stat -c %F "$dest"): $dest"
       rm -rf "$dest" || return 1
     fi
