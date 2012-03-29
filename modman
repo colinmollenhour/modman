@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.5.4"
+version="1.5.5"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -330,7 +330,7 @@ apply_modman_file ()
     # temporary file is workaround so that script can receive stdin
     if [ "$target" = "@shell" ]; then
       cd "$module_dir"
-      export PROJECT=$root/${basedir}
+      export PROJECT=$root/${basedir%%/}
       export MODULE=$module_dir
       shell_tmp=$(mktemp "$mm/.tmp.XXXXXXX")
       echo "($real)" > "$shell_tmp"
