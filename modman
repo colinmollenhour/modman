@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.5.5"
+version="1.5.6"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -40,6 +40,7 @@ Global Commands:
   --tutorial         show a brief tutorial on using modman
   --version          display the modman script's version
   [--force]          overwrite existing files, ignore untrusted cert warnings
+  [--no-local]       skip processing of modman.local files
 
 Module Commands:
   $script <command> [<module>] [--force] [--basedir <path>] [[--] <VCS options>]
@@ -50,7 +51,8 @@ Module Commands:
   update             update module using the appropriate SCM
   deploy             deploy an existing module (SCM not required or used)
   deploy --copy      deploy with hardlinks instead of symlinks (not recommended)
-  [--force]          overwrite existing files/uncommitted changes and ignore untrusted cert warnings
+  [--force]          overwrite existing files, ignore untrusted cert warnings
+  [--no-local]       skip processing of modman.local files
   [--basedir <path>] on checkout/clone, specifies a base for module deployment
   [<SCM options>]    specify additional parameters to SCM checkout/clone
 "
@@ -146,7 +148,8 @@ Local 'modman' file:
 ------------------------------
 You can create a modman file named \"modman.local\" which will also get applied
 like the standard modman file. The intended purpose of this file is to allow you
-to specify additional directives while excluding them from version control.
+to specify additional directives while excluding them from version control. The
+\"--no-local\" command option will prevent these files from being processed.
 
 Author:
 ------------------------------
@@ -469,6 +472,7 @@ done
 mmroot=$root          # parent of .modman directory 
 mm=$root/.modman      # path to .modman
 FORCE=0               # --force option off by default
+LOCAL=1               # --no-local option off by default
 
 # Allow a different root to be specified as root for deploying modules, applies to all modules
 newroot=$(get_basedir "$mm")
@@ -519,6 +523,7 @@ elif [ "$1" = "status" ]; then
 # Handle "deploy-all" command
 elif [ "$1" = "deploy-all" ]; then
   if [ "$2" = "--force" ]; then FORCE=1; shift; fi
+  if [ "$2" = "--no-local" ]; then LOCAL=0; shift; fi
   if [ -n "$2" ]; then echo "Too many arguments to deploy-all command."; exit 1; fi
   remove_dead_links
   errors=0
@@ -527,7 +532,7 @@ elif [ "$1" = "deploy-all" ]; then
     echo "Deploying $module to $root"
     if apply_modman_file "$mm/$module/modman"; then
       echo -e "Deployment of '$module' complete.\n"
-      if [ -r "$mm/$module/modman.local" ]; then
+      if [ $LOCAL -a -r "$mm/$module/modman.local" ]; then
         apply_modman_file "$mm/$module/modman.local" && echo "Applied local modman file for $module"
       fi
     else
@@ -543,6 +548,7 @@ elif [ "$1" = "deploy-all" ]; then
 #   Updates source code, removes dead links and then deploys modules
 elif [ "$1" = "update-all" ]; then
   if [ "$2" = "--force" ]; then FORCE=1; shift; fi
+  if [ "$2" = "--no-local" ]; then LOCAL=0; shift; fi
   if [ -n "$2" ]; then echo "Too many arguments to update-all command."; exit 1; fi
   update_errors=0
   updated=''
@@ -596,6 +602,7 @@ elif [ "$1" = "update-all" ]; then
 # Handle "repair" command
 elif [ "$1" = "repair" ]; then
   if [ "$2" = "--force" ]; then FORCE=1; shift; fi
+  if [ "$2" = "--no-local" ]; then LOCAL=0; shift; fi
   echo "Repairing links, do not interrupt."
   mv "$mm" "$mm-repairing" || { echo_b "ERROR: Could not temporarily rename .modman directory."; exit 1; }
   remove_dead_links
@@ -644,6 +651,9 @@ while [[ 1 ]]; do
   case "$1" in
     --force)
       FORCE=1; shift
+      ;;
+    --no-local)
+      LOCAL=0; shift
       ;;
     --basedir)
       shift; basedir="$1"; shift
@@ -696,6 +706,9 @@ while [[ 1 ]]; do
   case "$1" in
     --force)
       FORCE=1; shift
+      ;;
+    --no-local)
+      LOCAL=0; shift
       ;;
     --basedir)
       shift; basedir="$1"; shift
