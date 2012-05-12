@@ -284,7 +284,7 @@ apply_modman_file ()
   # Use a new file descriptor when called recursively
   # while loop should not read from stdin or else @shell scripts cannot get stdin
   FD=$((FD+1))
-  eval "exec $FD< <(grep -v '^#' '$module' | tr -d '\r' | grep -v '^\s*$')"
+  eval "exec $FD< <(grep -v '^#' '$module' | tr -d '\r' | grep -v '^\s*\$')"
   while read -u$FD line; do
 
     # Split <target> <real>
@@ -532,7 +532,7 @@ elif [ "$1" = "deploy-all" ]; then
     echo "Deploying $module to $root"
     if apply_modman_file "$mm/$module/modman"; then
       echo -e "Deployment of '$module' complete.\n"
-      if [ $LOCAL -a -r "$mm/$module/modman.local" ]; then
+      if [ $LOCAL -gt 0 -a -r "$mm/$module/modman.local" ]; then
         apply_modman_file "$mm/$module/modman.local" && echo "Applied local modman file for $module"
       fi
     else
@@ -587,7 +587,7 @@ elif [ "$1" = "update-all" ]; then
   echo -en "$updated" | while read -d $'\n' module; do
     if apply_modman_file "$mm/$module/modman"; then
       echo -e "Deployment of '$module' complete.\n"
-      if [ -r "$mm/$module/modman.local" ]; then
+      if [ $LOCAL -gt 0 -a -r "$mm/$module/modman.local" ]; then
         apply_modman_file "$mm/$module/modman.local" && echo "Applied local modman file for $module"
       fi
     else
@@ -612,7 +612,7 @@ elif [ "$1" = "repair" ]; then
     remove_basedirs "$module" &&
     apply_modman_file "$mm/$module/modman" &&
     echo -e "Repaired $module.\n"
-    if [ -r "$mm/$module/modman.local" ]; then
+    if [ $LOCAL -gt 0 -a -r "$mm/$module/modman.local" ]; then
       apply_modman_file "$mm/$module/modman.local" && echo "Applied local modman file for $module"
     fi
   done
