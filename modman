@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.5.6"
+version="1.5.7"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -218,7 +218,7 @@ require_wc ()
 remove_dead_links ()
 {
   # Use -exec rm instead of -delete to avoid bug in Darwin. -Thanks Vinai!
-  find -L "$root" -type l -exec rm {} \;
+  find -mount -L "$root" -type l -exec rm {} \;
   return $?
 }
 
