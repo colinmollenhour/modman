@@ -444,7 +444,7 @@ copy_over ()
     # Copy the files to their respective locations using hardlinks for efficiency
     local destDir=$(dirname "$dest")
     if ! [ -e "$destDir" ]; then
-      mkdir --parents "$destDir"
+      mkdir -p "$destDir"
     else
       if [ $FORCE -eq 0 ]; then
         echo -e "CONFLICT: $dest already exists.\nRun with --force to force removal of existing files."
@@ -453,7 +453,7 @@ copy_over ()
         rm -rf "$dest"
       fi
     fi
-    cp --recursive --link "$src" "$dest" || return 1
+    cp -R "$src" "$dest" || return 1
   done
   return 0
 }
