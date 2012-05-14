@@ -25,13 +25,13 @@ _modman()
 			opts=""
 			;;
 		update-all | deploy-all | checkout | clone | link)
-			opts="--force"
+			opts="--force --no-local"
 			;;
 		deploy | update)
-			opts=$(modman list)
+			opts="$(modman list) --force --no-local"
 			;;
 		*)
-			[ -d "$mm/${prev}" ] && opts="--force"
+			[ -d "$mm/${prev}" ] && opts="--force --no-local"
 			;;
 	esac
 	COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )

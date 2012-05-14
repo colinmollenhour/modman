@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.5.7"
+version="1.5.8"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -750,7 +750,7 @@ case "$action" in
 
     remove_dead_links
     apply_modman_file "$wc_desc" && echo "Update of $module complete."
-    if [ -r "$wc_desc.local" ]; then
+    if [ $LOCAL -gt 0 -a -r "$wc_desc.local" ]; then
       apply_modman_file "$wc_desc.local" && echo "Applied local modman file for $module"
     fi
     ;;
@@ -811,7 +811,7 @@ case "$action" in
       copy_over "$wc_desc" && echo "$module has been deployed under $root with --copy enabled"
     else
       apply_modman_file "$wc_desc" && echo "$module has been deployed under $root"
-      if [ -r "$wc_desc.local" ]; then
+      if [ $LOCAL -gt 0 -a -r "$wc_desc.local" ]; then
         apply_modman_file "$wc_desc.local" && echo "Applied local modman file for $module"
       fi
     fi
