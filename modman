@@ -218,7 +218,7 @@ require_wc ()
 remove_dead_links ()
 {
   # Use -exec rm instead of -delete to avoid bug in Darwin. -Thanks Vinai!
-  find -mount -L "$root" -type l -exec rm {} \;
+  find -L "$root" -mount -type l -exec rm {} \;
   return $?
 }
 
