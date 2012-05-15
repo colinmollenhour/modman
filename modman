@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.5.8"
+version="1.5.9"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -666,29 +666,31 @@ while [[ 1 ]]; do
   esac
 done
 
-# Discover if modman is run from within a module directory
-cd "$_pwd"
-while [ $(dirname "$mm") != "$(pwd)" ] && [ "$(pwd)" != "/" ]; do
-  modpath=$(pwd)
-  if [ $(dirname "$modpath") = "$mm" ]; then
-    module=$(basename "$modpath")
-    break
-  fi
-  cd ..
-done
-
 # If valid module is specified on command line
 if [ -z "$module" -a -n "$1" -a -d "$mm/$1" ] || [[ "$1" =~ $REGEX_MODULE ]]; then
   module=$1; shift
 fi
 
-# If new module name is not given, extract from end of next argument
-if [ -z "$module" ] && [[ "$action" =~ $REGEX_NEW_MODULE ]]; then
-  if [ $# -eq 1 -o "${2:0:2}" = "--" ]; then
-    src="$1"; shift
+# If module name is not given
+if [ -z "$module" ]; then
+  # Extract from end of next argument assuming it is the repo location
+  if [[ "$action" =~ $REGEX_NEW_MODULE ]] && [ $# -eq 1 -o "${2:0:2}" = "--" ]; then
+    module="$1"; shift
     module=${module//:/\/}    # replace : with / for basename in case of git SSH
-    module=$(basename "$src")
+    module=$(basename "$module")
     module=${module%.git}
+
+  # Discover if modman is run from within a module directory
+  else
+    cd "$_pwd"
+    while [ $(dirname "$mm") != "$(pwd)" ] && [ "$(pwd)" != "/" ]; do
+      modpath=$(pwd)
+      if [ $(dirname "$modpath") = "$mm" ]; then
+        module=$(basename "$modpath")
+        break
+      fi
+      cd ..
+    done
   fi
 fi
 
@@ -701,7 +703,7 @@ if [ -z "$module" ]; then
   exit 1
 fi
 
-# Get optional args
+# Get optional args again (allow them to come after the module name)
 while [[ 1 ]]; do
   case "$1" in
     --force)
