@@ -177,7 +177,7 @@ elif [ "$1" = "--help" -o "$1" = "" ]; then
 ###########################
 # Handle "--tutorial" command
 elif [ "$1" = "--tutorial" ]; then
-  echo -e "$tutorial" | pager; exit 0
+  echo -e "$tutorial" | less; exit 0
 ###########################
 # Handle "--version" command
 elif [ "$1" = "--version" ]; then
