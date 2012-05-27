@@ -634,7 +634,7 @@ fi
 # Handle all other module-specific commands
 #############################################
 
-REGEX_ACTION='^(update|checkout|clone|deploy|link)$'
+REGEX_ACTION='^(update|deploy|checkout|clone|link)$'
 REGEX_NEW_MODULE='^(checkout|clone|link)$'
 REGEX_BAD_MODULE="($REGEX_ACTION| )"
 REGEX_MODULE='^[a-zA-Z0-9_-]+$'
@@ -678,10 +678,12 @@ fi
 # If module name is not given
 if [ -z "$module" ]; then
   # Extract from end of next argument assuming it is the repo location
-  if [[ "$action" =~ $REGEX_NEW_MODULE ]] && [ $# -eq 1 -o "${2:0:1}" = "-" ]; then
-    module=${1%.git}             # strip .git if specified
-    module=${module//:/\/}       # replace : with / for basename in case of git SSH
-    module=$(basename "$module") # get the end-most part of the repo url
+  if [[ "$action" =~ $REGEX_NEW_MODULE ]]; then
+    if [ $# -eq 1 -o "${2:0:1}" = "-" ]; then
+      module=${1%.git}             # strip .git if specified
+      module=${module//:/\/}       # replace : with / for basename in case of git SSH
+      module=$(basename "$module") # get the end-most part of the repo url
+    fi
 
   # Discover if modman is run from within a module directory
   else
