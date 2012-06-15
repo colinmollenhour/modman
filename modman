@@ -787,7 +787,16 @@ case "$action" in
       svn checkout "$src" $@ "$module" && success=1
     elif [ "$action" = "clone" ]; then
       verb='cloned'
-      git clone --recursive "$src" $@ "$module" && success=1
+      if [ -d "$mmroot/.git" ]; then      # if root is a git repository, add repository as submodule
+        modrelpath=.${modulesdir#$mmroot} # get path relative from $mmroot to $modulesdir (needed for git submodule add)
+        cd $mmroot                        # git submodule needs to be run from project root
+        git submodule add "$src" $@ "$modrelpath/$module" && # clone and add submodule
+        git submodule update --init --recursive &&           # if repository has submodules add them, too
+        success=1
+        cd $modulesdir
+      else
+        git clone --recursive "$src" $@ "$module" && success=1
+      fi
     elif [ "$action" = "link" ]; then
       verb='linked'
       if [ -d "$src" ]; then
