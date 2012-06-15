@@ -162,13 +162,19 @@ colin@mollenhour.com
 # Handle "init" command, simply create .modman directory
 if [ "$1" = "init" ]; then
   basedir=$2
+  modulesdir=$3
   [[ -n "$basedir" && ! -d "$basedir" ]] && { echo "$basedir is not a directory."; exit 1; }
   mkdir .modman || { echo "Could not create .modman directory" && exit 1; }
+  [[ -n "$modulesdir" ]] && { mkdir -p $modulesdir || { echo "Could not create modules directory" && exit 1; } }
   if [ -n "$basedir" ]; then
     echo "$basedir" > .modman/.basedir
     basedir="with basedir at $basedir"
   fi
-  echo "Initialized Module Manager at $(pwd) $basedir"
+  if [ -n "$modulesdir" ]; then
+    echo "$modulesdir" > .modman/.modulesdir
+    modulesdir="and modulesdir at $modulesdir"
+  fi
+  echo "Initialized Module Manager at $(pwd) $basedir $modulesdir"
   exit 0
 ###########################
 # Handle "--help" command
