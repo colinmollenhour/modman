@@ -257,7 +257,7 @@ get_basedir ()
 }
 
 ###############################################################
-# Writes a file, setting the base directory for a module
+# Writes a file, setting the modules directory
 set_basedir ()
 {
   local module_dir=$1
