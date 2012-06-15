@@ -162,13 +162,19 @@ colin@mollenhour.com
 # Handle "init" command, simply create .modman directory
 if [ "$1" = "init" ]; then
   basedir=$2
+  modulesdir=$3
   [[ -n "$basedir" && ! -d "$basedir" ]] && { echo "$basedir is not a directory."; exit 1; }
   mkdir .modman || { echo "Could not create .modman directory" && exit 1; }
+  [[ -n "$modulesdir" ]] && { mkdir -p $modulesdir || { echo "Could not create modules directory" && exit 1; } }
   if [ -n "$basedir" ]; then
     echo "$basedir" > .modman/.basedir
     basedir="with basedir at $basedir"
   fi
-  echo "Initialized Module Manager at $(pwd) $basedir"
+  if [ -n "$modulesdir" ]; then
+    echo "$modulesdir" > .modman/.modulesdir
+    modulesdir="and modulesdir at $modulesdir"
+  fi
+  echo "Initialized Module Manager at $(pwd) $basedir $modulesdir"
   exit 0
 ###########################
 # Handle "--help" command
@@ -208,10 +214,10 @@ echo_b ()
 # Check for existence of a module directory and modman file
 require_wc ()
 {
-  if ! [ -d "$mm/$1" ]; then
+  if ! [ -d "$modulesdir/$1" ]; then
     echo_b "ERROR: $1 has not been checked out."; return 1
   fi
-  if ! [ -r "$mm/$1/modman" ]; then
+  if ! [ -r "$modulesdir/$1/modman" ]; then
     echo_b "ERROR: $1 does not contain a \"modman\" module description file."; return 1
   fi
   return 0
@@ -231,7 +237,7 @@ remove_dead_links ()
 remove_basedirs ()
 {
   local module=$1
-  find "$mm/$module" -name .basedir -print0 | grep -FzZv "$mm/$module/.basedir" | xargs -0 rm -f
+  find "$modulesdir/$module" -name .basedir -print0 | grep -FzZv "$modulesdir/$module/.basedir" | xargs -0 rm -f
 }
 
 ###############################################################
@@ -251,7 +257,7 @@ get_basedir ()
 }
 
 ###############################################################
-# Writes a file, setting the base directory for a module
+# Writes a file, setting the modules directory
 set_basedir ()
 {
   local module_dir=$1
@@ -266,6 +272,21 @@ set_basedir ()
     fi
   fi
   return 0
+}
+
+###############################################################
+# Reads the modules directory for a module
+# Return value is blank, or relative path
+get_modulesdir ()
+{
+  local modulesdir=''
+  if [ -r "$mm/.modulesdir" ]; then
+    modulesdir=$(cat "$mm/.modulesdir" | grep -v '^#')
+    if [ -n "$modulesdir" ]; then
+      modulesdir=${modulesdir%%/}
+    fi
+  fi
+  echo -n "$modulesdir"
 }
 
 ################################################################################
@@ -488,18 +509,30 @@ if [ -n "$newroot" ]; then
   root=$(pwd)
 fi
 
+# Allow a different directory to be specified as root modules
+newroot=$(get_modulesdir)
+if [ -n "$newroot" ]; then
+  if [ ! -d "$mmroot/$newroot" ]; then
+    echo -e "ERROR: modules directory $newroot does not exist"
+    exit 1
+  fi
+  modulesdir=$mmroot/$newroot
+else
+  modulesdir=$mmroot/.modman
+fi
+
 ###############################
 # Handle "list" command
 if [ "$1" = "list" ]; then
   shift
   prefix=''
-  if [ "$1" = "--absolute" ]; then shift; prefix="$mm/"; fi
+  if [ "$1" = "--absolute" ]; then shift; prefix="$modulesdir/"; fi
   if [ -n "$1" ]; then echo "Too many arguments to list command."; exit 1; fi
   while read -d $'\n' module; do
-    if [ -d "$mm/$module" -a -e "$mm/$module/modman" ]; then
+    if [ -d "$modulesdir/$module" -a -e "$modulesdir/$module/modman" ]; then
       echo "${prefix}$module"
     fi
-  done < <(ls -1 "$mm") 
+  done < <(ls -1 "$modulesdir") 
   exit 0
 
 ###############################
@@ -508,19 +541,19 @@ elif [ "$1" = "status" ]; then
   shift
   if [ -n "$1" ]; then echo "Too many arguments to status command."; exit 1; fi
   while read -d $'\n' module; do
-    if [ -d "$mm/$module" -a -e "$mm/$module/modman" ]; then
-      cd "$mm/$module"
+    if [ -d "$modulesdir/$module" -a -e "$modulesdir/$module/modman" ]; then
+      cd "$modulesdir/$module"
       echo_b "-- $module --"
-      if [ -d "$mm/$module/.git" ]; then
+      if [ -d "$modulesdir/$module/.git" ]; then
         git status
-      elif [ -d "$mm/$module/.svn" ]; then
+      elif [ -d "$modulesdir/$module/.svn" ]; then
         svn status
       else
         echo "Not a git or svn repository."
       fi
       echo
     fi
-  done < <(ls -1 "$mm") 
+  done < <(ls -1 "$modulesdir") 
   exit 0
 
 ###############################
@@ -532,18 +565,18 @@ elif [ "$1" = "deploy-all" ]; then
   remove_dead_links
   errors=0
   while read -d $'\n' module; do
-    test -d "$mm/$module" && require_wc "$module" || continue;
+    test -d "$modulesdir/$module" && require_wc "$module" || continue;
     echo "Deploying $module to $root"
-    if apply_modman_file "$mm/$module/modman"; then
+    if apply_modman_file "$modulesdir/$module/modman"; then
       echo -e "Deployment of '$module' complete.\n"
-      if [ $LOCAL -gt 0 -a -r "$mm/$module/modman.local" ]; then
-        apply_modman_file "$mm/$module/modman.local" && echo "Applied local modman file for $module"
+      if [ $LOCAL -gt 0 -a -r "$modulesdir/$module/modman.local" ]; then
+        apply_modman_file "$modulesdir/$module/modman.local" && echo "Applied local modman file for $module"
       fi
     else
       echo_b -e "Error occurred while deploying '$module'.\n"
       errors=$((errors+1))
     fi
-  done < <(ls -1 "$mm")
+  done < <(ls -1 "$modulesdir")
   echo "Deployed all modules with $errors errors."
   exit 0
 
@@ -557,9 +590,9 @@ elif [ "$1" = "update-all" ]; then
   update_errors=0
   updated=''
   while read -d $'\n' module; do
-    test -d "$mm/$module" && require_wc "$module" || continue;
+    test -d "$modulesdir/$module" && require_wc "$module" || continue;
     echo "Updating $module"
-    cd "$mm/$module"
+    cd "$modulesdir/$module"
     success=0
     if [ -d .svn ]; then
       if [ $FORCE -eq 1 ]; then
@@ -585,14 +618,14 @@ elif [ "$1" = "update-all" ]; then
       echo_b -e "Error occurred while updating '$module'.\n"
       update_errors=$((update_errors+1))
     fi
-  done < <(ls -1 "$mm")
+  done < <(ls -1 "$modulesdir")
   remove_dead_links
   deploy_errors=0
   echo -en "$updated" | while read -d $'\n' module; do
-    if apply_modman_file "$mm/$module/modman"; then
+    if apply_modman_file "$modulesdir/$module/modman"; then
       echo -e "Deployment of '$module' complete.\n"
-      if [ $LOCAL -gt 0 -a -r "$mm/$module/modman.local" ]; then
-        apply_modman_file "$mm/$module/modman.local" && echo "Applied local modman file for $module"
+      if [ $LOCAL -gt 0 -a -r "$modulesdir/$module/modman.local" ]; then
+        apply_modman_file "$modulesdir/$module/modman.local" && echo "Applied local modman file for $module"
       fi
     else
       echo_b -e "Error occurred while deploying '$module'.\n"
@@ -608,16 +641,16 @@ elif [ "$1" = "repair" ]; then
   if [ "$2" = "--force" ]; then FORCE=1; shift; fi
   if [ "$2" = "--no-local" ]; then LOCAL=0; shift; fi
   echo "Repairing links, do not interrupt."
-  mv "$mm" "$mm-repairing" || { echo_b "ERROR: Could not temporarily rename .modman directory."; exit 1; }
+  mv "$modulesdir" "$modulesdir-repairing" || { echo_b "ERROR: Could not temporarily rename modules directory."; exit 1; }
   remove_dead_links
-  mv "$mm-repairing" "$mm" || { echo_b "ERROR: Could not restore .modman directory."; exit 1; }
-  ls -1 "$mm" | while read -d $'\n' module; do
-    test -d "$mm/$module" && require_wc "$module" || continue;
+  mv "$modulesdir-repairing" "$modulesdir" || { echo_b "ERROR: Could not restore modules directory."; exit 1; }
+  ls -1 "$modulesdir" | while read -d $'\n' module; do
+    test -d "$modulesdir/$module" && require_wc "$module" || continue;
     remove_basedirs "$module" &&
-    apply_modman_file "$mm/$module/modman" &&
+    apply_modman_file "$modulesdir/$module/modman" &&
     echo -e "Repaired $module.\n"
-    if [ $LOCAL -gt 0 -a -r "$mm/$module/modman.local" ]; then
-      apply_modman_file "$mm/$module/modman.local" && echo "Applied local modman file for $module"
+    if [ $LOCAL -gt 0 -a -r "$modulesdir/$module/modman.local" ]; then
+      apply_modman_file "$modulesdir/$module/modman.local" && echo "Applied local modman file for $module"
     fi
   done
   exit 0
@@ -671,7 +704,7 @@ while [[ 1 ]]; do
 done
 
 # If valid module is specified on command line
-if [ -z "$module" -a -n "$1" -a -d "$mm/$1" ] || [[ "$1" =~ $REGEX_MODULE ]]; then
+if [ -z "$module" -a -n "$1" -a -d "$modulesdir/$1" ] || [[ "$1" =~ $REGEX_MODULE ]]; then
   module=$1; shift
 fi
 
@@ -688,9 +721,9 @@ if [ -z "$module" ]; then
   # Discover if modman is run from within a module directory
   else
     cd "$_pwd"
-    while [ $(dirname "$mm") != "$(pwd)" ] && [ "$(pwd)" != "/" ]; do
+    while [ $(dirname "$modulesdir") != "$(pwd)" ] && [ "$(pwd)" != "/" ]; do
       modpath=$(pwd)
-      if [ $(dirname "$modpath") = "$mm" ]; then
+      if [ $(dirname "$modpath") = "$modulesdir" ]; then
         module=$(basename "$modpath")
         break
       fi
@@ -728,9 +761,9 @@ while [[ 1 ]]; do
   esac
 done
 
-cd $_pwd;                 # restore old root
-wc_dir=$mm/$module        # working copy directory for module
-wc_desc=$wc_dir/modman    # path to modman structure descriptor file
+cd $_pwd;                     # restore old root
+wc_dir=$modulesdir/$module    # working copy directory for module
+wc_desc=$wc_dir/modman        # path to modman structure descriptor file
 
 case "$action" in
 
@@ -764,7 +797,7 @@ case "$action" in
 
   checkout|clone|link)
     FORCE=1
-    cd $mm
+    cd $modulesdir
     if [[ "$module" =~ $REGEX_BAD_MODULE ]]; then
       echo "You cannot $action a module with a name matching $REGEX_BAD_MODULE."; exit 1
     fi
