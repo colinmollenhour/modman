@@ -788,12 +788,11 @@ case "$action" in
     elif [ "$action" = "clone" ]; then
       verb='cloned'
       if [ -d "$mmroot/.git" ]; then      # if root is a git repository, add repository as submodule
-        modrelpath=.${modulesdir#$mmroot} # get path relative from $mmroot to $modulesdir (needed for git submodule add)
         cd $mmroot                        # git submodule needs to be run from project root
-        git submodule add "$src" $@ "$modrelpath/$module" && # clone and add submodule
+        git submodule add "$src" $@ ".modman/$module" && # clone and add submodule
         git submodule update --init --recursive &&           # if repository has submodules add them, too
         success=1
-        cd $modulesdir
+        cd $mm
       else
         git clone --recursive "$src" $@ "$module" && success=1
       fi
