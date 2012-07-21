@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.6.0"
+version="1.6.1"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -462,6 +462,16 @@ copy_over ()
   return 0
 }
 
+###########################################################################
+# Get git remote tracking branch or an empty string
+get_tracking_branch ()
+{
+  local tracking_branch=$(git rev-parse --symbolic-full-name --abbrev-ref @{u} 2> /dev/null)
+  if [ -n $tracking_branch -a "$tracking_branch" != "@{u}" ]; then
+    echo $tracking_branch
+  fi
+}
+
 ################################
 # Find the .modman directory and store parent path in $root
 mm_not_found="Module Manager directory not found.\nRun \"$script init\" in the root of the project with which you would like to use Module Manager."
@@ -556,24 +566,50 @@ elif [ "$1" = "update-all" ]; then
   if [ -n "$2" ]; then echo "Too many arguments to update-all command."; exit 1; fi
   update_errors=0
   updated=''
+
+  # Fetch first in case an origin is not responding or slow
   while read -d $'\n' module; do
     test -d "$mm/$module" && require_wc "$module" || continue;
-    echo "Updating $module"
+    cd "$mm/$module"
+    [ -d .git ] && [ "$(git remote)" != "" ] || continue;
+    echo "Fetching changes for $module"
+    success=0
+    if [ $FORCE -eq 1 ]; then
+      git status -s | grep -vq '??' && { echo "Cannot do --force update, module has uncommitted changes."; exit 1; }
+      git fetch --force && success=1
+    else
+      git fetch && success=1
+    fi
+    # TODO - fetch submodules as well
+    if [ $success -ne 1 ]; then
+      echo "Failed to fetch updates for $module"
+      exit 1
+    fi
+  done < <(ls -1 "$mm")
+
+  # Then update using merge
+  while read -d $'\n' module; do
+    test -d "$mm/$module" && require_wc "$module" || continue;
     cd "$mm/$module"
     success=0
     if [ -d .svn ]; then
+      echo "Updating $module"
       if [ $FORCE -eq 1 ]; then
         svn update --force --non-interactive --trust-server-cert && success=1
       else
         svn update && success=1
       fi
-    elif [ -d .git ]; then
-      if [ $FORCE -eq 1 ]; then
-        tracking_branch=$(git rev-parse --symbolic-full-name --abbrev-ref @{u})
-        [[ -n $tracking_branch ]] || { echo "Could not resolve remote tracking branch."; exit 1; }
-        git fetch --force && git reset --hard $tracking_branch && git submodule update --init --recursive && success=1
+    elif [ -d .git ] && [ "$(git remote)" != "" ]; then
+      tracking_branch=$(get_tracking_branch)
+      if [ -z $tracking_branch ]; then
+        echo "Could not resolve remote tracking branch, code will not be updated."
+        success=1
+      elif [ $FORCE -eq 1 ]; then
+        echo "Updating $module"
+        git reset --hard $tracking_branch && git submodule update --init --recursive && success=1
       else
-        git pull && git submodule update --init --recursive && success=1
+        echo "Updating $module"
+        git merge $tracking_branch && git submodule update --init --recursive && success=1
       fi
     else
       success=1
