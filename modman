@@ -348,11 +348,33 @@ apply_modman_file ()
 
     # Create symlink to target
     local src=$module_dir/$target
+
+    # always try to create from mmroot, for relative paths
+    cd $mmroot
+
+    # make relative
+    mkrelative=''
+    if [ "${real%/*}" != "${real}" ]; then
+      if [ "${real%/}" != "${real}" ]; then
+        mkrelative=`echo ${real%/*/} | sed -e 's/[^\/]*/../g'`'/'
+      else
+        mkrelative=`echo ${real%/*} | sed -e 's/[^\/]*/../g'`'/'
+      fi
+    fi
+    
+    # Create relative symlink to target
+    local src=${relpath%/*}/$target
+
     local dest=$root/${basedir}${real%/}
 
     # Handle globbing (extended globbing enabled)
     shopt -s extglob
     if ! [ -e "$src" ] && [ $(ls $src 2> /dev/null | wc -l) -gt 0 ]; then
+ 	
+      if [ "${real%/}" != "${real}" ]; then
+        mkrelative=`echo ${real%/} | sed -e 's/[^\/]*/../g'`'/';
+      fi
+
       for _src in $src; do
         create_symlink "$_src" "$dest/${_src##*/}" "$target" "${real%/}/${_src##*/}" "$line" || return 1
       done
@@ -411,7 +433,7 @@ create_symlink ()
       rm -f "$dest"
     fi
     # Create parent directories and symlink
-    if mkdir -p "${dest%/*}" && ln -s "$src" "$dest"
+    if mkdir -p "${dest%/*}" && ln -s "${mkrelative}$src" "$dest"
     then
       printf " Applied: %-30s  %s\n" "$target" "$real"
     else
