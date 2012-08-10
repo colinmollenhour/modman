@@ -158,6 +158,16 @@ http://colin.mollenhour.com/
 colin@mollenhour.com
 "
 
+# Fix GNU inconsistencies with Mac
+case $OSTYPE in
+  darwin*)
+    stat="stat -f"
+    ;;
+  *)
+    stat="stat -c"
+    ;;
+esac
+
 ###########################
 # Handle "init" command, simply create .modman directory
 if [ "$1" = "init" ]; then
@@ -393,12 +403,12 @@ create_symlink ()
   if [ -e "$dest" ];
   then
     if ! [ -L "$dest" ] && [ $FORCE -eq 0 ]; then
-      echo_b "CONFLICT: $(stat -c %F "$dest") already exists and is not a symlink:"
+      echo_b "CONFLICT: $($stat %F "$dest") already exists and is not a symlink:"
       echo_b " $line"
       echo   "(Run with $(bold)--force$(unbold) to force removal of existing files and directories.)"
       return 1
     elif ! [ -L "$dest" ] || [ "$src" != "$(readlink "$dest")" ]; then
-      echo "$(bold)WARNING:$(unbold) Removing conflicting $(stat -c %F "$dest"): $dest"
+      echo "$(bold)WARNING:$(unbold) Removing conflicting $($stat %F "$dest"): $dest"
       rm -rf "$dest" || return 1
     fi
   fi
