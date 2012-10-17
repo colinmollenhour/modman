@@ -196,10 +196,10 @@ elif [ "$1" = "--help" -o "$1" = "" ]; then
 ###########################
 # Handle "--tutorial" command
 elif [ "$1" = "--tutorial" ]; then
-  pager=$(which pager)                                                                                                  
-  if [ -n $pager ]; then                                                                                                
-      pager=less                                                                                                        
-  fi                                                                                                                    
+  pager=$(which pager)
+  if [ -n $pager ]; then
+      pager=less
+  fi
   echo -e "$tutorial" | $pager; exit 0
 ###########################
 # Handle "--version" command
@@ -496,13 +496,13 @@ get_tracking_branch ()
 mm_not_found="Module Manager directory not found.\nRun \"$script init\" in the root of the project with which you would like to use Module Manager."
 _pwd=$(pwd -P)
 root=$_pwd
-while ! [ -d $root/.modman ]; do
+while ! [ -d "$root/.modman" ]; do
   if [ "$root" = "/" ]; then echo -e $mm_not_found && exit 1; fi
   cd .. || { echo -e "ERROR: Could not traverse up from $root\n$mm_not_found" && exit 1; }
   root=$(pwd)
 done
 
-mmroot=$root          # parent of .modman directory 
+mmroot=$root          # parent of .modman directory
 mm=$root/.modman      # path to .modman
 FORCE=0               # --force option off by default
 LOCAL=1               # --no-local option off by default
@@ -528,7 +528,7 @@ if [ "$1" = "list" ]; then
     if [ -d "$mm/$module" -a -e "$mm/$module/modman" ]; then
       echo "${prefix}$module"
     fi
-  done < <(ls -1 "$mm") 
+  done < <(ls -1 "$mm")
   exit 0
 
 ###############################
@@ -549,7 +549,7 @@ elif [ "$1" = "status" ]; then
       fi
       echo
     fi
-  done < <(ls -1 "$mm") 
+  done < <(ls -1 "$mm")
   exit 0
 
 ###############################
@@ -783,7 +783,7 @@ while [[ 1 ]]; do
   esac
 done
 
-cd $_pwd;                 # restore old root
+cd "$_pwd";               # restore old root
 wc_dir=$mm/$module        # working copy directory for module
 wc_desc=$wc_dir/modman    # path to modman structure descriptor file
 
@@ -819,7 +819,7 @@ case "$action" in
 
   checkout|clone|link)
     FORCE=1
-    cd $mm
+    cd "$mm"
     if [[ "$module" =~ $REGEX_BAD_MODULE ]]; then
       echo "You cannot $action a module with a name matching $REGEX_BAD_MODULE."; exit 1
     fi
@@ -834,7 +834,7 @@ case "$action" in
       echo "You must specify a source for the '$action' command."; exit 1
     fi
     if [ "$1" = "--" ]; then shift; fi
-    
+
     success=0
     verb=''
     if [ "$action" = "checkout" ]; then
