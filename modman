@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.6.2"
+version="1.6.3"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -250,7 +250,7 @@ remove_dead_links ()
 remove_basedirs ()
 {
   local module=$1
-  find "$mm/$module" -name .basedir -print0 | grep -FzZv "$mm/$module/.basedir" | xargs -0 rm -f
+  find "$mm/$module" -name .basedir | grep -FZv "$mm/$module/.basedir" | xargs -0 rm -f
 }
 
 ###############################################################
