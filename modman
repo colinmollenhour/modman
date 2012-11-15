@@ -51,6 +51,7 @@ Module Commands:
   update             update module using the appropriate SCM
   deploy             deploy an existing module (SCM not required or used)
   deploy --copy      deploy with hardlinks instead of symlinks (not recommended)
+  remove             remove a module (DELETES MODULE FILES)
   [--force]          overwrite existing files, ignore untrusted cert warnings
   [--no-local]       skip processing of modman.local files
   [--basedir <path>] on checkout/clone, specifies a base for module deployment
@@ -693,7 +694,7 @@ fi
 # Handle all other module-specific commands
 #############################################
 
-REGEX_ACTION='^(update|deploy|checkout|clone|link)$'
+REGEX_ACTION='^(update|deploy|checkout|clone|link|remove)$'
 REGEX_NEW_MODULE='^(checkout|clone|link)$'
 REGEX_BAD_MODULE="($REGEX_ACTION| )"
 REGEX_MODULE='^[a-zA-Z0-9_-]+$'
@@ -881,6 +882,11 @@ case "$action" in
         apply_modman_file "$wc_desc.local" && echo "Applied local modman file for $module"
       fi
     fi
+    ;;
+
+  remove)
+    require_wc "$module" || exit 1
+    rm -rf "$wc_dir" && remove_dead_links && echo "$module has been removed"
     ;;
 
   *)
