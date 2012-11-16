@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.7"
+version="1.7.1"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -349,7 +349,7 @@ apply_modman_file ()
         fi
       fi
 
-      apply_modman_file "$import" "$import_base/" || return 1
+      apply_modman_file "$import" "$import_base" || return 1
       continue
     fi
 
