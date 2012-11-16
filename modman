@@ -349,7 +349,7 @@ apply_modman_file ()
         fi
       fi
 
-      apply_modman_file "$import" "$import_base" || return 1
+      apply_modman_file "$import" "$import_base/" || return 1
       continue
     fi
 
@@ -411,6 +411,7 @@ create_symlink ()
 
   # Make symlinks relative to mmroot
   local reldest=${dest#$mmroot/}
+  reldest=${reldest#/}  # remove extra leading slashes
   src=$(IFS=/; for d in ${reldest%/*}; do echo -n '../'; done)${src#$mmroot/}
 
   # Handle cases where files already exist at the destination or link does not match expected destination
