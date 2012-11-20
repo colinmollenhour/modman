@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.7.2"
+version="1.7.3"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -410,9 +410,13 @@ create_symlink ()
   local src="$1"; local dest="$2"; local target="$3"; local real="$4"; local line="$5"
 
   # Make symlinks relative to mmroot
-  local reldest=${dest#$mmroot/}
-  reldest=${reldest#/}  # remove extra leading slashes
-  src=$(IFS=/; for d in ${reldest%/*}; do echo -n '../'; done)${src#$mmroot/}
+  local reldest=${dest#$mmroot/}; reldest=${reldest#/}
+  if [ "$reldest" != "${reldest%/*}" ]; then
+    reldest=$(IFS=/; for d in ${reldest%/*}; do echo -n '../'; done)
+  else
+    reldest=""
+  fi
+  src=${reldest}${src#$mmroot/}
 
   # Handle cases where files already exist at the destination or link does not match expected destination
   if [ -e "$dest" ];
