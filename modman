@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.7.1"
+version="1.7.2"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -851,9 +851,17 @@ case "$action" in
       git clone --recursive "$src" $@ "$module" && success=1
     elif [ "$action" = "link" ]; then
       verb='linked'
-      if [ -d "$src" ]; then
-        ln -s "$src" "$module" && success=1
+      cd "$mmroot"
+      if ! [ -d "$src" ]; then
+        echo "The path specified does not exist or is not a directory."
+        echo "The module path must either be an absolute path, or relative to $mmroot"
+        exit 1
       fi
+      if [ "${src:0:1}" != "/" ]; then
+        src="../$src"
+      fi
+      ln -s "$src" ".modman/$module" && success=1
+      cd "$mm"
     fi
 
     if
