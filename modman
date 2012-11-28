@@ -882,7 +882,6 @@ case "$action" in
       if [ -d "$wc_dir" ]; then rm -rf "$wc_dir"; fi
       echo "Error trying to $action new module '$module', operation cancelled."
     fi
-    remove_dead_links
     ;;
 
   deploy)
