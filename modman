@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.7.3"
+version="1.7.4"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -32,7 +32,7 @@ Global Commands:
   init [basedir]     initialize the pwd (or [basedir]) as the modman deploy root
   list [--absolute]  list all valid modules that are currently checked out
   status             show VCS 'status' command for all modules
-  incoming           show new VCS remote changesets
+  incoming           show new VCS remote changesets for all VCS-based modules
   update-all         update all modules that are currently checked out
   deploy-all         deploy all modules (no VCS interaction)
   repair             rebuild all modman-created symlinks (no updates performed)
@@ -179,6 +179,10 @@ darwin_stat ()
     *) echo unknown_type;;
   esac
 }
+pager=$(which pager)
+if [ -n $pager ]; then
+  pager=less
+fi
 
 ###########################
 # Handle "init" command, simply create .modman directory
@@ -199,10 +203,6 @@ elif [ "$1" = "--help" -o "$1" = "" ]; then
 ###########################
 # Handle "--tutorial" command
 elif [ "$1" = "--tutorial" ]; then
-  pager=$(which pager)
-  if [ -n $pager ]; then
-      pager=less
-  fi
   echo -e "$tutorial" | $pager; exit 0
 ###########################
 # Handle "--version" command
@@ -559,7 +559,7 @@ elif [ "$1" = "status" ]; then
       elif [ -d "$mm/$module/.hg" ]; then
         hg status
       else
-        echo "Not a git or svn repository."
+        echo "Not a git, hg or svn repository."
       fi
       echo
     fi
@@ -571,22 +571,31 @@ elif [ "$1" = "status" ]; then
 elif [ "$1" = "incoming" ]; then
   shift
   if [ -n "$1" ]; then echo "Too many arguments to status command."; exit 1; fi
+  tmpfile=$(mktemp "$mm/.incoming.XXXX")
   while read -d $'\n' module; do
     if [ -d "$mm/$module" -a -e "$mm/$module/modman" ]; then
       cd "$mm/$module"
-      echo_b "-- $module --"
+      echo_b "-- $module --" >> $tmpfile
       if [ -d "$mm/$module/.git" ]; then
-        git fetch && git log ..origin/master
+        tracking_branch=$(get_tracking_branch)
+        if [ -z $tracking_branch ]; then
+          echo "Could not resolve remote tracking branch." >> $tmpfile
+        else
+          echo "Fetching updates for $module..."
+          git fetch && git --no-pager log --color ..origin/master >> $tmpfile
+        fi
       elif [ -d "$mm/$module/.svn" ]; then
-        svn st --show-updates
+        svn st --show-updates >> $tmpfile
       elif [ -d "$mm/$module/.hg" ]; then
-        hg incoming
+        hg incoming >> $tmpfile
       else
-        echo "Not a git or svn repository."
+        echo "Not a git, hg or svn repository." >> $tmpfile
       fi
-      echo
+      echo >> $tmpfile
     fi
   done < <(ls -1 "$mm")
+  less -fFR $tmpfile
+  rm $tmpfile
   exit 0
 
 ###############################

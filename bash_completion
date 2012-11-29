@@ -17,14 +17,14 @@ _modman()
 		modman)
 			opts="init --help --version --tutorial"
 			if [ -n "$mm" ]; then
-				opts="${opts} list status update-all deploy-all repair clean"
-				opts="${opts} checkout clone link deploy update remove"
+				opts="${opts} list status incoming update-all deploy-all repair clean"
+				opts="${opts} checkout clone hgclone link deploy update remove"
 			fi
 			;;
-		init | --help | --version | --tutorial | list | repair | --force | --copy)
+		init | --help | --version | --tutorial | list | status | incoming | repair | clean | --force | --copy)
 			opts=""
 			;;
-		update-all | deploy-all | checkout | clone | link)
+		update-all | deploy-all | checkout | clone | hgclone | link)
 			opts="--force --no-local"
 			;;
 		deploy | update)
