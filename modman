@@ -308,8 +308,8 @@ apply_modman_file ()
   fi
 
   # while loop should not read from stdin or else @shell scripts cannot get stdin
-  IFS=$'\n'
-  for line in $(grep -v '^#' "$module" | tr -d '\r' | grep -v '^\s*\$'); do
+  IFS=$'\r\n'
+  for line in $(grep -v -e '^#' -e '^\s*$' "$module"); do
     IFS=$' \t\n'
 
     # Split <target> <real>
@@ -453,14 +453,17 @@ create_symlink ()
 copy_over ()
 {
   local module="$1"
-  grep -v '^#' "$module" | grep -v '^\s*$' | \
-  while read svn real; do
+  IFS=$'\r\n'
+  for line in $(grep -v -e '^#' -e '^\s*$' "$module"); do
+    IFS=$' \t\n'
+    read target real <<< $line
+
     local module_dir=$(dirname "$module")
-    local src=$module_dir/$svn
-    local dest=$(echo -n "$root/${real%/}" | tr -d '\r')
+    local src=$module_dir/$target
+    local dest="$root/${real%/}"
 
     # Handle @import case
-    if [ "$svn" = "@import" ]; then
+    if [ "$target" = "@import" ]; then
       local import=$module_dir/$real/modman
       if ! [ -r "$import" ]; then
         echo "Failed \"@import $real\", $import not found."; return 1
