@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.7.4"
+version="1.7.5"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -307,11 +307,10 @@ apply_modman_file ()
     basedir=$2
   fi
 
-  # Use a new file descriptor when called recursively
   # while loop should not read from stdin or else @shell scripts cannot get stdin
-  FD=$((FD+1))
-  eval "exec $FD< <(grep -v '^#' '$module' | tr -d '\r' | grep -v '^\s*\$')"
-  while read -u$FD line; do
+  IFS=$'\n'
+  for line in $(grep -v '^#' "$module" | tr -d '\r' | grep -v '^\s*\$'); do
+    IFS=$' \t\n'
 
     # Split <target> <real>
     read target real <<< $line
@@ -397,13 +396,8 @@ apply_modman_file ()
     create_symlink "$src" "$dest" "$target" "$real" "$line" || return 1
   done
 
-  # Close file descriptor and decrement counter
-  eval "exec $FD<&-"
-  FD=$((FD-1))
-
   return 0
 }
-FD=3  # Emulate a stack for file descriptors starting at 3
 
 ###########################################################################
 # Creates a symlink with lots of error-checking
