@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.7.5"
+version="1.7.6"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -533,11 +533,11 @@ if [ "$1" = "list" ]; then
   prefix=''
   if [ "$1" = "--absolute" ]; then shift; prefix="$mm/"; fi
   if [ -n "$1" ]; then echo "Too many arguments to list command."; exit 1; fi
-  while read -d $'\n' module; do
+  ls -1 "$mm" | while read -d $'\n' module; do
     if [ -d "$mm/$module" -a -e "$mm/$module/modman" ]; then
       echo "${prefix}$module"
     fi
-  done < <(ls -1 "$mm")
+  done
   exit 0
 
 ###############################
@@ -545,7 +545,7 @@ if [ "$1" = "list" ]; then
 elif [ "$1" = "status" ]; then
   shift
   if [ -n "$1" ]; then echo "Too many arguments to status command."; exit 1; fi
-  while read -d $'\n' module; do
+  ls -1 "$mm" | while read -d $'\n' module; do
     if [ -d "$mm/$module" -a -e "$mm/$module/modman" ]; then
       cd "$mm/$module"
       echo_b "-- $module --"
@@ -560,7 +560,7 @@ elif [ "$1" = "status" ]; then
       fi
       echo
     fi
-  done < <(ls -1 "$mm")
+  done
   exit 0
 
 ###############################
@@ -569,7 +569,7 @@ elif [ "$1" = "incoming" ]; then
   shift
   if [ -n "$1" ]; then echo "Too many arguments to status command."; exit 1; fi
   tmpfile=$(mktemp "$mm/.incoming.XXXX")
-  while read -d $'\n' module; do
+  ls -1 "$mm" | while read -d $'\n' module; do
     if [ -d "$mm/$module" -a -e "$mm/$module/modman" ]; then
       cd "$mm/$module"
       echo_b "-- $module --" >> $tmpfile
@@ -590,7 +590,7 @@ elif [ "$1" = "incoming" ]; then
       fi
       echo >> $tmpfile
     fi
-  done < <(ls -1 "$mm")
+  done
   less -fFR $tmpfile
   rm $tmpfile
   exit 0
@@ -603,7 +603,7 @@ elif [ "$1" = "deploy-all" ]; then
   if [ -n "$2" ]; then echo "Too many arguments to deploy-all command."; exit 1; fi
   remove_dead_links
   errors=0
-  while read -d $'\n' module; do
+  ls -1 "$mm" | while read -d $'\n' module; do
     test -d "$mm/$module" && require_wc "$module" || continue;
     echo "Deploying $module to $root"
     if apply_modman_file "$mm/$module/modman"; then
@@ -615,7 +615,7 @@ elif [ "$1" = "deploy-all" ]; then
       echo_b -e "Error occurred while deploying '$module'.\n"
       errors=$((errors+1))
     fi
-  done < <(ls -1 "$mm")
+  done
   echo "Deployed all modules with $errors errors."
   exit 0
 
@@ -630,7 +630,7 @@ elif [ "$1" = "update-all" ]; then
   updated=''
 
   # Fetch first in case an origin is not responding or slow
-  while read -d $'\n' module; do
+  ls -1 "$mm" | while read -d $'\n' module; do
     test -d "$mm/$module" && require_wc "$module" || continue;
     cd "$mm/$module"
     [ -d .git ] && [ "$(git remote)" != "" ] || continue;
@@ -647,10 +647,10 @@ elif [ "$1" = "update-all" ]; then
       echo "Failed to fetch updates for $module"
       exit 1
     fi
-  done < <(ls -1 "$mm")
+  done
 
   # Then update using merge
-  while read -d $'\n' module; do
+  ls -1 "$mm" | while read -d $'\n' module; do
     test -d "$mm/$module" && require_wc "$module" || continue;
     cd "$mm/$module"
     success=0
@@ -686,7 +686,7 @@ elif [ "$1" = "update-all" ]; then
       echo_b -e "Error occurred while updating '$module'.\n"
       update_errors=$((update_errors+1))
     fi
-  done < <(ls -1 "$mm")
+  done
   remove_dead_links
   deploy_errors=0
   echo -en "$updated" | while read -d $'\n' module; do
