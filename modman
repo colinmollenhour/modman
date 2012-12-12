@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.7.6"
+version="1.8.0"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -52,11 +52,11 @@ Module Commands:
   link <path>        link to a module that already exists on the local filesystem
   update             update module using the appropriate SCM
   deploy             deploy an existing module (SCM not required or used)
-  deploy --copy      deploy with hardlinks instead of symlinks (not recommended)
   remove             remove a module (DELETES MODULE FILES)
   [--force]          overwrite existing files, ignore untrusted cert warnings
   [--no-local]       skip processing of modman.local files
   [--basedir <path>] on checkout/clone, specifies a base for module deployment
+  [--copy]           deploy by copying files instead of symlinks
   [<SCM options>]    specify additional parameters to SCM checkout/clone
 "
 tutorial="\
@@ -161,6 +161,9 @@ http://colin.mollenhour.com/
 colin@mollenhour.com
 "
 
+# Action is first argument
+action=$1; shift
+
 # Fix GNU inconsistencies with Mac
 case $OSTYPE in
   darwin*)
@@ -186,8 +189,8 @@ fi
 
 ###########################
 # Handle "init" command, simply create .modman directory
-if [ "$1" = "init" ]; then
-  basedir=$2
+if [ "$action" = "init" ]; then
+  basedir=$1
   [[ -n "$basedir" && ! -d "$basedir" ]] && { echo "$basedir is not a directory."; exit 1; }
   mkdir .modman || { echo "Could not create .modman directory" && exit 1; }
   if [ -n "$basedir" ]; then
@@ -198,15 +201,15 @@ if [ "$1" = "init" ]; then
   exit 0
 ###########################
 # Handle "--help" command
-elif [ "$1" = "--help" -o "$1" = "" ]; then
+elif [ "$action" = "--help" -o "$action" = "" ]; then
   echo -e "$usage"; exit 0
 ###########################
 # Handle "--tutorial" command
-elif [ "$1" = "--tutorial" ]; then
+elif [ "$action" = "--tutorial" ]; then
   echo -e "$tutorial" | $pager; exit 0
 ###########################
 # Handle "--version" command
-elif [ "$1" = "--version" ]; then
+elif [ "$action" = "--version" ]; then
   echo "Module Manager version: $version"; exit 0
 fi
 
@@ -375,7 +378,7 @@ apply_modman_file ()
     shopt -s extglob
     if ! [ -e "$src" ] && [ $(ls $src 2> /dev/null | wc -l) -gt 0 ]; then
       for _src in $src; do
-        create_symlink "$_src" "$dest/${_src##*/}" "$target" "${real%/}/${_src##*/}" "$line" || return 1
+        apply_path "$_src" "$dest/${_src##*/}" "$target" "${real%/}/${_src##*/}" "$line" || return 1
       done
       continue
     fi # end Handle globbing
@@ -383,7 +386,7 @@ apply_modman_file ()
     # Handle aliases that do not exist
     if ! [ -e "$src" ];
     then
-      echo -e "$(bold)WARNING:$(unbold) Symlink target does not exist ($relpath):\n $line"
+      echo -e "$(bold)WARNING:$(unbold) Target does not exist ($relpath):\n $line"
       continue
     fi
 
@@ -392,27 +395,28 @@ apply_modman_file ()
       dest="$dest/$(basename "$src")"
     fi
 
-    # Handle cases where files already exist at the destination
-    create_symlink "$src" "$dest" "$target" "$real" "$line" || return 1
+    apply_path "$src" "$dest" "$target" "$real" "$line" || return 1
   done
 
   return 0
 }
 
 ###########################################################################
-# Creates a symlink with lots of error-checking
-create_symlink ()
+# Creates a symlink or copies a file (with lots of error-checking)
+apply_path ()
 {
   local src="$1"; local dest="$2"; local target="$3"; local real="$4"; local line="$5"
 
   # Make symlinks relative to mmroot
-  local reldest=${dest#$mmroot/}; reldest=${reldest#/}
-  if [ "$reldest" != "${reldest%/*}" ]; then
-    reldest=$(IFS=/; for d in ${reldest%/*}; do echo -n '../'; done)
-  else
-    reldest=""
+  if [ $COPY -eq 0 ]; then
+    local reldest=${dest#$mmroot/}; reldest=${reldest#/}
+    if [ "$reldest" != "${reldest%/*}" ]; then
+      reldest=$(IFS=/; for d in ${reldest%/*}; do echo -n '../'; done)
+    else
+      reldest=""
+    fi
+    src=${reldest}${src#$mmroot/}
   fi
-  src=${reldest}${src#$mmroot/}
 
   # Handle cases where files already exist at the destination or link does not match expected destination
   if [ -e "$dest" ];
@@ -435,58 +439,27 @@ create_symlink ()
     if [ -L "$dest" ]; then
       rm -f "$dest"
     fi
-    # Create parent directories and symlink
-    if mkdir -p "${dest%/*}" && ln -s "$src" "$dest"
-    then
+    # Create parent directories
+    if ! mkdir -p "${dest%/*}"; then
+      echo_b -e "ERROR: Unable to create parent directory (${dest%/*}):\n $line"
+      return 1
+    fi
+    # Symlink or copy
+    success=0
+    if [ $COPY -eq 1 ]; then
+      verb='copy'
+      cp -R "$src" "$dest" && success=1
+    else
+      verb='create symlink'
+      ln -s "$src" "$dest" && success=1
+    fi
+    if [ $success -eq 1 ]; then
       printf " Applied: %-30s  %s\n" "$target" "$real"
     else
-      echo_b -e "ERROR: Unable to create symlink ($dest):\n $line"
+      echo_b -e "ERROR: Unable to $verb ($dest):\n $line"
       return 1
     fi
   fi
-  return 0
-}
-
-###########################################################################
-# Similar to apply_modman_file but creates hardlinks instead of using symlinks
-# This feature is not fully supported and may have bugs
-copy_over ()
-{
-  local module="$1"
-  IFS=$'\r\n'
-  for line in $(grep -v -e '^#' -e '^\s*$' "$module"); do
-    IFS=$' \t\n'
-    read target real <<< $line
-
-    local module_dir=$(dirname "$module")
-    local src=$module_dir/$target
-    local dest="$root/${real%/}"
-
-    # Handle @import case
-    if [ "$target" = "@import" ]; then
-      local import=$module_dir/$real/modman
-      if ! [ -r "$import" ]; then
-        echo "Failed \"@import $real\", $import not found."; return 1
-      else
-        copy_over "$import" || return 1
-        continue
-      fi
-    fi
-
-    # Copy the files to their respective locations using hardlinks for efficiency
-    local destDir=$(dirname "$dest")
-    if ! [ -e "$destDir" ]; then
-      mkdir -p "$destDir"
-    else
-      if [ $FORCE -eq 0 ]; then
-        echo -e "CONFLICT: $dest already exists.\nRun with --force to force removal of existing files."
-        return 1
-      else
-        rm -rf "$dest"
-      fi
-    fi
-    cp -R "$src" "$dest" || return 1
-  done
   return 0
 }
 
@@ -513,8 +486,6 @@ done
 
 mmroot=$root          # parent of .modman directory
 mm=$root/.modman      # path to .modman
-FORCE=0               # --force option off by default
-LOCAL=1               # --no-local option off by default
 
 # Allow a different root to be specified as root for deploying modules, applies to all modules
 newroot=$(get_basedir "$mm")
@@ -526,10 +497,29 @@ if [ -n "$newroot" ]; then
   root=$(pwd)
 fi
 
+# Check for common option overrides
+FORCE=0               # --force option off by default
+LOCAL=1               # --no-local option off by default
+COPY=0                # --copy option off by default
+basedir=''
+while true; do
+  case "$1" in
+    --force)    FORCE=1; shift ;;
+    --no-local) LOCAL=0; shift ;;
+    --copy)     COPY=1; shift ;;
+    --basedir)
+      shift; basedir="$1"; shift
+      if ! [ -n "$basedir" -a -d "$root/$basedir" ]; then
+        echo "Specified --basedir does not exist: $basedir"; exit 1
+      fi
+      ;;
+    *) break ;;
+  esac
+done
+
 ###############################
 # Handle "list" command
-if [ "$1" = "list" ]; then
-  shift
+if [ "$action" = "list" ]; then
   prefix=''
   if [ "$1" = "--absolute" ]; then shift; prefix="$mm/"; fi
   if [ -n "$1" ]; then echo "Too many arguments to list command."; exit 1; fi
@@ -542,8 +532,7 @@ if [ "$1" = "list" ]; then
 
 ###############################
 # Handle "status" command
-elif [ "$1" = "status" ]; then
-  shift
+elif [ "$action" = "status" ]; then
   if [ -n "$1" ]; then echo "Too many arguments to status command."; exit 1; fi
   ls -1 "$mm" | while read -d $'\n' module; do
     if [ -d "$mm/$module" -a -e "$mm/$module/modman" ]; then
@@ -565,9 +554,8 @@ elif [ "$1" = "status" ]; then
 
 ###############################
 # Handle "incoming" command
-elif [ "$1" = "incoming" ]; then
-  shift
-  if [ -n "$1" ]; then echo "Too many arguments to status command."; exit 1; fi
+elif [ "$action" = "incoming" ]; then
+  if [ -n "$1" ]; then echo "Too many arguments to incoming command."; exit 1; fi
   tmpfile=$(mktemp "$mm/.incoming.XXXX")
   ls -1 "$mm" | while read -d $'\n' module; do
     if [ -d "$mm/$module" -a -e "$mm/$module/modman" ]; then
@@ -597,10 +585,8 @@ elif [ "$1" = "incoming" ]; then
 
 ###############################
 # Handle "deploy-all" command
-elif [ "$1" = "deploy-all" ]; then
-  if [ "$2" = "--force" ]; then FORCE=1; shift; fi
-  if [ "$2" = "--no-local" ]; then LOCAL=0; shift; fi
-  if [ -n "$2" ]; then echo "Too many arguments to deploy-all command."; exit 1; fi
+elif [ "$action" = "deploy-all" ]; then
+  if [ -n "$1" ]; then echo "Too many arguments to deploy-all command."; exit 1; fi
   remove_dead_links
   errors=0
   ls -1 "$mm" | while read -d $'\n' module; do
@@ -622,10 +608,8 @@ elif [ "$1" = "deploy-all" ]; then
 ###############################
 # Handle "update-all" command
 #   Updates source code, removes dead links and then deploys modules
-elif [ "$1" = "update-all" ]; then
-  if [ "$2" = "--force" ]; then FORCE=1; shift; fi
-  if [ "$2" = "--no-local" ]; then LOCAL=0; shift; fi
-  if [ -n "$2" ]; then echo "Too many arguments to update-all command."; exit 1; fi
+elif [ "$action" = "update-all" ]; then
+  if [ -n "$1" ]; then echo "Too many arguments to update-all command."; exit 1; fi
   update_errors=0
   updated=''
 
@@ -705,9 +689,7 @@ elif [ "$1" = "update-all" ]; then
 
 ###########################
 # Handle "repair" command
-elif [ "$1" = "repair" ]; then
-  if [ "$2" = "--force" ]; then FORCE=1; shift; fi
-  if [ "$2" = "--no-local" ]; then LOCAL=0; shift; fi
+elif [ "$action" = "repair" ]; then
   echo "Repairing links, do not interrupt."
   mv "$mm" "$mm-repairing" || { echo_b "ERROR: Could not temporarily rename .modman directory."; exit 1; }
   remove_dead_links
@@ -725,7 +707,7 @@ elif [ "$1" = "repair" ]; then
 
 ###########################
 # Handle "clean" command
-elif [ "$1" = "clean" ]; then
+elif [ "$action" = "clean" ]; then
   echo "Cleaning broken links."
   remove_dead_links
   exit 0
@@ -740,8 +722,6 @@ REGEX_NEW_MODULE='^(checkout|clone|hgclone|link)$'
 REGEX_BAD_MODULE="($REGEX_ACTION| )"
 REGEX_MODULE='^[a-zA-Z0-9_-]+$'
 
-# Action is first argument
-action=$1; shift
 if ! [[ "$action" =~ $REGEX_ACTION ]]; then
   echo "Invalid action specified: $action"
   exit 1
@@ -749,27 +729,6 @@ fi
 
 module=''
 src=''
-basedir=''
-
-# Get optional args
-while [[ 1 ]]; do
-  case "$1" in
-    --force)
-      FORCE=1; shift
-      ;;
-    --no-local)
-      LOCAL=0; shift
-      ;;
-    --basedir)
-      shift; basedir="$1"; shift
-      if ! [ -n "$basedir" -a -d "$root/$basedir" ]; then
-        echo "Specified --basedir does not exist: $basedir"; exit 1
-      fi
-      ;;
-    *)
-      break
-  esac
-done
 
 # If valid module is specified on command line
 if [ -z "$module" -a -n "$1" -a -d "$mm/$1" ] || [[ "$1" =~ $REGEX_MODULE ]]; then
@@ -810,14 +769,11 @@ if [ -z "$module" ]; then
 fi
 
 # Get optional args again (allow them to come after the module name)
-while [[ 1 ]]; do
+while true; do
   case "$1" in
-    --force)
-      FORCE=1; shift
-      ;;
-    --no-local)
-      LOCAL=0; shift
-      ;;
+    --force)    FORCE=1; shift ;;
+    --no-local) LOCAL=0; shift ;;
+    --copy)     COPY=1; shift ;;
     --basedir)
       shift; basedir="$1"; shift
       if ! [ -n "$basedir" -a -d "$root/$basedir" ]; then
@@ -927,13 +883,9 @@ case "$action" in
 
   deploy)
     require_wc "$module" || exit 1
-    if [ "$1" = "--copy" ]; then
-      copy_over "$wc_desc" && echo "$module has been deployed under $root with --copy enabled"
-    else
-      apply_modman_file "$wc_desc" && echo "$module has been deployed under $root"
-      if [ $LOCAL -gt 0 -a -r "$wc_desc.local" ]; then
-        apply_modman_file "$wc_desc.local" && echo "Applied local modman file for $module"
-      fi
+    apply_modman_file "$wc_desc" && echo "$module has been deployed under $root"
+    if [ $LOCAL -gt 0 -a -r "$wc_desc.local" ]; then
+      apply_modman_file "$wc_desc.local" && echo "Applied local modman file for $module"
     fi
     ;;
 
