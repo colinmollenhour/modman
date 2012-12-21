@@ -1,0 +1,9 @@
+{
+    "name": "colinmollenhour/modman",
+    "description": "Magento Module Manager",
+    "authors": [
+        {
+            "name": "Colin Mollenhour"
+        }
+    ]
+}
