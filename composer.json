@@ -1,5 +1,7 @@
 {
     "name": "colinmollenhour/modman",
+    "license": "Apache-2.0",
+    "homepage": "https://github.com/colinmollenhour/modman",
     "description": "Magento Module Manager",
     "authors": [
         {
