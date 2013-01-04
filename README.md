@@ -18,6 +18,11 @@ All of your cloned/checked-out modules will be kept in a directory named
   * Common utilities available in your PATH: grep (POSIX), find, ln, cp, basename, dirname
   * Web server must follow symlinks
   * git and/or subversion are optional (not required for "deploy" command)
+  * For Magento, if using template files in a modman module, you must enable "Allow Symlinks"
+  
+![Allow Symlinks](https://f.cloud.github.com/assets/1337461/43324/820d4d96-567f-11e2-947a-167bf76db33f.png)
+  
+*NOTE:* There is no additional security risk to allowing symlinks, despite the warning which says otherwise...
 
 ## Installation
 
