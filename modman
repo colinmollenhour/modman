@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.8.0"
+version="1.9.0"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -95,6 +95,9 @@ go where relative to the directory where modman was initialized.
 
    # Destination file name is not required if the same as the source.
    My_Module.xml          app/etc/modules/
+
+   # Leave out the destination entirely to assume the same path as the source.
+   lib/Somelib
 
    # Bash extended glob patterns supported.
    skin/css/*             skin/frontend/base/default/css/
