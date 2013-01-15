@@ -318,6 +318,11 @@ apply_modman_file ()
     # Split <target> <real>
     read target real <<< $line
 
+    # Assume target == real if only one path is given
+    if [ -z "$real" ]; then
+        real="$target"
+    fi
+
     # Sanity check for empty data
     if [ -z "$target" -o -z "$real" ]; then
       echo_b -e "ERROR: Invalid input in modman file ($relpath):\n $line"
