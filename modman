@@ -185,7 +185,7 @@ darwin_stat ()
     *) echo unknown_type;;
   esac
 }
-pager=${PAGER:-$(which pager)}
+pager=${PAGER:-$(which pager &> /dev/null)}
 if [ -n $pager ]; then
   pager=less
 fi
