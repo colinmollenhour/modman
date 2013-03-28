@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.9.0"
+version="1.9.1"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -42,6 +42,7 @@ Global Commands:
   --version          display the modman script's version
   [--force]          overwrite existing files, ignore untrusted cert warnings
   [--no-local]       skip processing of modman.local files
+  [--no-clean]       skip cleaning of broken symlinks
 
 Module Commands:
   $script <command> [<module>] [--force] [--basedir <path>] [[--] <VCS options>]
@@ -55,6 +56,7 @@ Module Commands:
   remove             remove a module (DELETES MODULE FILES)
   [--force]          overwrite existing files, ignore untrusted cert warnings
   [--no-local]       skip processing of modman.local files
+  [--no-clean]       skip cleaning of broken symlinks
   [--basedir <path>] on checkout/clone, specifies a base for module deployment
   [--copy]           deploy by copying files instead of symlinks
   [<SCM options>]    specify additional parameters to SCM checkout/clone
@@ -249,6 +251,9 @@ require_wc ()
 # Removes dead symlinks
 remove_dead_links ()
 {
+  if [ $NOCLEAN -eq 1 ]; then
+    return 0
+  fi
   # Use -exec rm instead of -delete to avoid bug in Darwin. -Thanks Vinai!
   find -L "$root" -mount -type l -exec rm {} \;
   return $?
@@ -509,12 +514,14 @@ fi
 FORCE=0               # --force option off by default
 LOCAL=1               # --no-local option off by default
 COPY=0                # --copy option off by default
+NOCLEAN=0             # --no-clean off by default
 basedir=''
 while true; do
   case "$1" in
     --force)    FORCE=1; shift ;;
     --no-local) LOCAL=0; shift ;;
     --copy)     COPY=1; shift ;;
+    --no-clean) NOCLEAN=1; shift ;;
     --basedir)
       shift; basedir="$1"; shift
       if ! [ -n "$basedir" -a -d "$root/$basedir" ]; then
@@ -717,6 +724,7 @@ elif [ "$action" = "repair" ]; then
 # Handle "clean" command
 elif [ "$action" = "clean" ]; then
   echo "Cleaning broken links."
+  NOCLEAN=0
   remove_dead_links
   exit 0
 fi
@@ -781,6 +789,7 @@ while true; do
   case "$1" in
     --force)    FORCE=1; shift ;;
     --no-local) LOCAL=0; shift ;;
+    --no-clean) NOCLEAN=1; shift ;;
     --copy)     COPY=1; shift ;;
     --basedir)
       shift; basedir="$1"; shift
