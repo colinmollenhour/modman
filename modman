@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.9.1"
+version="1.9.2"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -159,6 +159,16 @@ like the standard modman file. The intended purpose of this file is to allow you
 to specify additional directives while excluding them from version control. The
 \"--no-local\" command option will prevent these files from being processed.
 
+Custom 'clean' script:
+------------------------------
+On some systems the dead link search can be brutally slow. You can create a
+custom clean script at .modman/.clean which will override the default clean
+script. Here is an example of a custom clean script that ignores the \"media\"
+and \"var\" directories:
+
+    echo Cleaning dead links in \$PWD
+    find -L . -mount \\( -path ./media -o -path ./var \\) -prune -o -type l -exec rm {} \;
+
 Author:
 ------------------------------
 Colin Mollenhour
@@ -254,8 +264,14 @@ remove_dead_links ()
   if [ $NOCLEAN -eq 1 ]; then
     return 0
   fi
-  # Use -exec rm instead of -delete to avoid bug in Darwin. -Thanks Vinai!
-  find -L "$root" -mount -type l -exec rm {} \;
+
+  # Support use of a custom clean script
+  if [ -r "$mm/.clean" ]; then
+    ( cd "$root"; $SHELL "$mm/.clean" )
+  else
+    # Use -exec rm instead of -delete to avoid bug in Darwin. -Thanks Vinai!
+    ( cd "$root"; find -L . -mount -type l -exec rm {} \; )
+  fi
   return $?
 }
 
