@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.9.2"
+version="1.9.3"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -183,9 +183,11 @@ action=$1; shift
 case $OSTYPE in
   darwin*)
     stat_type="darwin_stat"
+    readlink_missing="echo" # readlink -m not supported
     ;;
   *)
     stat_type="stat -c %F"
+    readlink_missing="readlink -m"
     ;;
 esac
 darwin_stat ()
@@ -436,8 +438,8 @@ apply_path ()
 {
   local src="$1"; local dest="$2"; local target="$3"; local real="$4"; local line="$5"
 
-  # Make symlinks relative to mmroot
-  if [ $COPY -eq 0 ]; then
+  # Make symlinks relative to mmroot only if the base path is not itself in a symlinked path
+  if [ $COPY -eq 0 ] && [ "${dest%/*}" == "$($readlink_missing "${dest%/*}")" ]; then
     local reldest=${dest#$mmroot/}; reldest=${reldest#/}
     if [ "$reldest" != "${reldest%/*}" ]; then
       reldest=$(IFS=/; for d in ${reldest%/*}; do echo -n '../'; done)
