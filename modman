@@ -59,6 +59,7 @@ Module Commands:
   [--no-clean]       skip cleaning of broken symlinks
   [--basedir <path>] on checkout/clone, specifies a base for module deployment
   [--copy]           deploy by copying files instead of symlinks
+  [--clear-cache]    clear the magento cache after completing command
   [<SCM options>]    specify additional parameters to SCM checkout/clone
 "
 tutorial="\
@@ -504,6 +505,18 @@ get_tracking_branch ()
   fi
 }
 
+###########################################################################
+# Clears the Magento cache at var/cache
+clear_cache ()
+{
+  rm -r $mmroot/var/cache 2> /dev/null
+  if [ $? -eq 0 ]; then
+    echo "Successfully cleared Magento cache"
+  else
+  	echo "Unable to clear Magento cache"
+  fi
+}
+
 ################################
 # Find the .modman directory and store parent path in $root
 mm_not_found="Module Manager directory not found.\nRun \"$script init\" in the root of the project with which you would like to use Module Manager."
@@ -533,6 +546,7 @@ FORCE=0               # --force option off by default
 LOCAL=1               # --no-local option off by default
 COPY=0                # --copy option off by default
 NOCLEAN=0             # --no-clean off by default
+CLEARCACHE=0          # --clear-cache off by default
 basedir=''
 while true; do
   case "$1" in
@@ -540,6 +554,7 @@ while true; do
     --no-local) LOCAL=0; shift ;;
     --copy)     COPY=1; shift ;;
     --no-clean) NOCLEAN=1; shift ;;
+	--clear-cache) CLEARCACHE=1; shift ;;
     --basedir)
       shift; basedir="$1"; shift
       if ! [ -n "$basedir" -a -d "$root/$basedir" ]; then
@@ -809,6 +824,7 @@ while true; do
     --no-local) LOCAL=0; shift ;;
     --no-clean) NOCLEAN=1; shift ;;
     --copy)     COPY=1; shift ;;
+	--clear-cache) CLEARCACHE=1; shift ;;
     --basedir)
       shift; basedir="$1"; shift
       if ! [ -n "$basedir" -a -d "$root/$basedir" ]; then
@@ -853,6 +869,9 @@ case "$action" in
     apply_modman_file "$wc_desc" && echo "Update of $module complete."
     if [ $LOCAL -gt 0 -a -r "$wc_desc.local" ]; then
       apply_modman_file "$wc_desc.local" && echo "Applied local modman file for $module"
+    fi
+    if [ $CLEARCACHE -eq 1 ]; then
+      clear_cache
     fi
     ;;
 
@@ -910,6 +929,9 @@ case "$action" in
         using_basedir=" using base directory '$basedir'"
       fi
       echo "Successfully $verb new module '$module'$using_basedir"
+      if [ $CLEARCACHE -eq 1 ]; then
+      	clear_cache
+      fi
     else
       if [ -d "$wc_dir" ]; then rm -rf "$wc_dir"; fi
       echo "Error trying to $action new module '$module', operation cancelled."
@@ -922,6 +944,9 @@ case "$action" in
     if [ $LOCAL -gt 0 -a -r "$wc_desc.local" ]; then
       apply_modman_file "$wc_desc.local" && echo "Applied local modman file for $module"
     fi
+	if [ $CLEARCACHE -eq 1 ]; then
+	  clear_cache
+	fi
     ;;
 
   remove)
