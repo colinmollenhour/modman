@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.9.3"
+version="1.9.4"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -181,8 +181,8 @@ action=$1; shift
 
 # Fix GNU inconsistencies with Mac
 case $OSTYPE in
-  darwin*)
-    stat_type="darwin_stat"
+  darwin*|*bsd*)
+    stat_type="bsd_stat"
     readlink_missing="echo" # readlink -m not supported
     ;;
   *)
@@ -190,7 +190,7 @@ case $OSTYPE in
     readlink_missing="readlink -m"
     ;;
 esac
-darwin_stat ()
+bsd_stat ()
 {
   case "$(stat -f %T "$1")" in
     "*") echo file;;
