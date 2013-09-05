@@ -443,6 +443,10 @@ apply_path ()
     local reldest=${dest#$mmroot/}; reldest=${reldest#/}
     if [ "$reldest" != "${reldest%/*}" ]; then
       reldest=$(IFS=/; for d in ${reldest%/*}; do echo -n '../'; done)
+      upcount=`echo $dest | grep -F -o '../' | wc -l`
+      if [ $upcount -gt 0 ]; then
+        reldest=`echo $reldest | cut -c $(expr $upcount \* 2 \* 3 + 1)-`
+      fi
     else
       reldest=""
     fi
