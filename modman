@@ -504,6 +504,70 @@ get_tracking_branch ()
   fi
 }
 
+###########################################################################
+# Save reference to repository URL in .repos file
+save_repo_url ()
+{
+  repos_file="$1/.repos"
+  action=$2
+  repo_url=$3
+  module=${3%.git}             # strip .git if specified
+  module=${module//:/\/}       # replace : with / for basename in case of git SSH
+  module=$(basename "$module") # get the end-most part of the repo url
+
+  if [ ! -f $repos_file ]; then
+    touch $repos_file
+    if [ $? -ne 0 ]; then
+      return 1
+    fi
+  elif [ ! -r $repos_file ] || [ ! -w $repos_file ]; then
+    return 1
+  fi
+
+  grep "^$module" $repos_file
+  if [ $? -ne 0 ]; then
+    # The module has not yet been added
+    echo "$module $action $repo_url" >> $repos_file
+    if [ $? -ne 0 ]; then
+      return 1
+    fi
+  fi
+  return 0
+}
+
+###########################################################################
+# Remove reference to repository URL in .repos file
+remove_repo_url ()
+{
+  repos_file="$1/.repos"
+  module=$2
+
+  if [ ! -r $repos_file ] || [ ! -w $repos_file ]; then
+    return 1
+  fi
+
+  grep "^$module" $repos_file
+  if [ $? -eq 0 ]; then
+    repocount=$(cat $repos_file | wc -l)
+    if [ $repocount -eq 1 ]; then
+      # There is only one line in the .repos file, so using a grep filter will fail
+      echo "" > $repos_file
+    else
+      grep -v "^$module" $repos_file > "/tmp/$$_repofile"
+      if [ $? -ne 0 ]; then
+        return 1
+      fi
+      mv "/tmp/$$_repofile" "$repos_file"
+    fi
+    if [ $? -ne 0 ]; then
+      return 1
+    fi
+  else
+    return 1
+  fi
+  return 0
+}
+
 ################################
 # Find the .modman directory and store parent path in $root
 mm_not_found="Module Manager directory not found.\nRun \"$script init\" in the root of the project with which you would like to use Module Manager."
@@ -646,6 +710,34 @@ elif [ "$action" = "update-all" ]; then
   update_errors=0
   updated=''
 
+  # Make sure repositories exist
+  if [ -r "$mm/.repos" ]; then
+    echo "Making sure all repos exist."
+    while read line; do
+      read module action repo_url <<< $line
+      if [ -z "$module" -o -z "$action" -o -z "$repo_url" ]; then
+        continue
+      fi
+      if [ "$action" = "clone" ]; then
+        repotype=".git"
+      elif [ "$action" = "hgclone" ]; then
+        repotype=".hg"
+      elif [ "$action" = "checkout" ]; then
+        repotype=".svn"
+      else
+        echo "$module has an invalid action type set. Skipping."
+        continue;
+      fi
+      test -d "$mm/$module/$repotype" && continue;
+      if [ ! "$(ls -A $mm/$module)" ]; then
+        rmdir $mm/$module
+      fi
+      $script $action $repo_url
+    done < "$mm/.repos"
+    echo ""
+  fi
+
+  echo "Updating modules."
   # Fetch first in case an origin is not responding or slow
   ls -1 "$mm" | while read -d $'\n' module; do
     test -d "$mm/$module" && require_wc "$module" || continue;
@@ -906,6 +998,7 @@ case "$action" in
       set_basedir "$wc_dir" "$basedir" &&
       apply_modman_file "$wc_desc"
     then
+      save_repo_url "$mm" "$action" "$src"
       if [ -n "$basedir" ]; then
         using_basedir=" using base directory '$basedir'"
       fi
@@ -927,6 +1020,7 @@ case "$action" in
   remove)
     require_wc "$module" || exit 1
     rm -rf "$wc_dir" && remove_dead_links && echo "$module has been removed"
+    remove_repo_url "$mm" "$module"
     ;;
 
   *)
