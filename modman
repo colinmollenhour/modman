@@ -200,7 +200,7 @@ bsd_stat ()
   esac
 }
 pager=${PAGER:-$(which pager &> /dev/null)}
-if [ -n $pager ]; then
+if [ -n "$pager" ]; then
   pager=less
 fi
 
