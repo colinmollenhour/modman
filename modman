@@ -27,7 +27,7 @@ usage="\
 Module Manager (v$version)
 
 Global Commands:
-  $script <command> [--force]
+  $script <command> [<options>]
 ------------------------------
   init [basedir]     initialize the pwd (or [basedir]) as the modman deploy root
   list [--absolute]  list all valid modules that are currently checked out
@@ -45,21 +45,21 @@ Global Commands:
   [--no-clean]       skip cleaning of broken symlinks
 
 Module Commands:
-  $script <command> [<module>] [--force] [--basedir <path>] [[--] <VCS options>]
+  $script <command> [<module>] [<options>] [[--] <VCS options>]
 ------------------------------
   checkout <src>     checkout a new modman-compatible module using subversion
   clone <src>        checkout a new modman-compatible module using git clone
   hgclone <src>      checkout a new modman-compatible module using hg clone
   link <path>        link to a module that already exists on the local filesystem
-  update             update module using the appropriate SCM
-  deploy             deploy an existing module (SCM not required or used)
+  update             update module using the appropriate VCS
+  deploy             deploy an existing module (VCS not required or used)
   remove             remove a module (DELETES MODULE FILES)
   [--force]          overwrite existing files, ignore untrusted cert warnings
   [--no-local]       skip processing of modman.local files
   [--no-clean]       skip cleaning of broken symlinks
   [--basedir <path>] on checkout/clone, specifies a base for module deployment
   [--copy]           deploy by copying files instead of symlinks
-  [<SCM options>]    specify additional parameters to SCM checkout/clone
+  [<VCS options>]    specify additional parameters to VCS checkout/clone
 "
 tutorial="\
 Deploying a modman module:
@@ -142,7 +142,7 @@ environment variables will be made available:
 
 Standalone mode:
 ------------------------------
-The modman script can be used without an SCM by placing the module directory in
+The modman script can be used without a VCS by placing the module directory in
 the proper location and running \"modman deploy <module>\". The root of the
 module must be located at <project_root>/.modman/<module_name>/ and it must
 contain a modman file.
