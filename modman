@@ -913,6 +913,7 @@ case "$action" in
     else
       if [ -d "$wc_dir" ]; then rm -rf "$wc_dir"; fi
       echo "Error trying to $action new module '$module', operation cancelled."
+      exit 1
     fi
     ;;
 
