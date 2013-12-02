@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.9.4"
+version="1.9.5"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -597,7 +597,7 @@ elif [ "$action" = "incoming" ]; then
       if [ -d "$mm/$module/.git" ]; then
         tracking_branch=$(get_tracking_branch)
         if [ -z $tracking_branch ]; then
-          echo "Could not resolve remote tracking branch." >> $tmpfile
+          echo "Could not resolve remote tracking branch for $module module." >> $tmpfile
         else
           echo "Fetching updates for $module..."
           git fetch && git --no-pager log --color ..origin/master >> $tmpfile
@@ -650,24 +650,31 @@ elif [ "$action" = "update-all" ]; then
   ls -1 "$mm" | while read -d $'\n' module; do
     test -d "$mm/$module" && require_wc "$module" || continue;
     cd "$mm/$module"
-    [ -d .git ] && [ "$(git remote)" != "" ] || continue;
-    echo "Fetching changes for $module"
-    success=0
-    if [ $FORCE -eq 1 ]; then
-      git status -s | grep -vq '??' && { echo "Cannot do --force update, module has uncommitted changes."; exit 1; }
-      git fetch --force && success=1
-    else
-      git fetch && success=1
-    fi
-    # TODO - fetch submodules as well
-    if [ $success -ne 1 ]; then
-      echo "Failed to fetch updates for $module"
-      exit 1
+    success=1
+    if [ -d .git ] && [ "$(git remote)" != "" ]; then
+      echo "Fetching changes for $module"
+      success=0
+      if [ $FORCE -eq 1 ]; then
+        if git status -s | grep -vq '??'; then
+          git fetch --force && success=1
+        else
+          echo "Cannot do --force update, module has uncommitted changes."
+		  exit 1
+		fi
+      else
+        git fetch && success=1
+      fi
+	fi
+    if [ $success -eq 1 ]; then
+      updated="${updated}${module}\n"
+	else
+      echo_b -e "Failed to fetch updates for $module\n"
+      update_errors=$((update_errors+1))
     fi
   done
 
   # Then update using merge
-  ls -1 "$mm" | while read -d $'\n' module; do
+  echo -en "$updated" | while read -d $'\n' module; do
     test -d "$mm/$module" && require_wc "$module" || continue;
     cd "$mm/$module"
     success=0
@@ -680,14 +687,13 @@ elif [ "$action" = "update-all" ]; then
       fi
     elif [ -d .git ] && [ "$(git remote)" != "" ]; then
       tracking_branch=$(get_tracking_branch)
+      echo "Updating $module"
       if [ -z $tracking_branch ]; then
         echo "Could not resolve remote tracking branch, code will not be updated."
         success=1
       elif [ $FORCE -eq 1 ]; then
-        echo "Updating $module"
         git reset --hard $tracking_branch && git submodule update --init --recursive && success=1
       else
-        echo "Updating $module"
         git merge $tracking_branch && git submodule update --init --recursive && success=1
       fi
     elif [ -d .hg ]; then
@@ -697,16 +703,15 @@ elif [ "$action" = "update-all" ]; then
       success=1
     fi
     echo
-    if [ $success -eq 1 ]; then
-      updated="${updated}${module}\n"
-    else
-      echo_b -e "Error occurred while updating '$module'.\n"
+    if [ $success -ne 1 ]; then
+      echo_b -e "Error occurred while updating $module\n"
       update_errors=$((update_errors+1))
     fi
   done
   remove_dead_links
   deploy_errors=0
-  echo -en "$updated" | while read -d $'\n' module; do
+  ls -1 "$mm" | while read -d $'\n' module; do
+    test -d "$mm/$module" && require_wc "$module" || continue;
     if apply_modman_file "$mm/$module/modman"; then
       echo -e "Deployment of '$module' complete.\n"
       if [ $LOCAL -gt 0 -a -r "$mm/$module/modman.local" ]; then
