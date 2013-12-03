@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.9.5"
+version="1.9.6"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -556,7 +556,7 @@ if [ "$action" = "list" ]; then
   prefix=''
   if [ "$1" = "--absolute" ]; then shift; prefix="$mm/"; fi
   if [ -n "$1" ]; then echo "Too many arguments to list command."; exit 1; fi
-  ls -1 "$mm" | while read -d $'\n' module; do
+  for module in $(ls -1 "$mm"); do
     if [ -d "$mm/$module" -a -e "$mm/$module/modman" ]; then
       echo "${prefix}$module"
     fi
@@ -567,7 +567,7 @@ if [ "$action" = "list" ]; then
 # Handle "status" command
 elif [ "$action" = "status" ]; then
   if [ -n "$1" ]; then echo "Too many arguments to status command."; exit 1; fi
-  ls -1 "$mm" | while read -d $'\n' module; do
+  for module in $(ls -1 "$mm"); do
     if [ -d "$mm/$module" -a -e "$mm/$module/modman" ]; then
       cd "$mm/$module"
       echo_b "-- $module --"
@@ -590,7 +590,7 @@ elif [ "$action" = "status" ]; then
 elif [ "$action" = "incoming" ]; then
   if [ -n "$1" ]; then echo "Too many arguments to incoming command."; exit 1; fi
   tmpfile=$(mktemp "$mm/.incoming.XXXX")
-  ls -1 "$mm" | while read -d $'\n' module; do
+  for module in $(ls -1 "$mm"); do
     if [ -d "$mm/$module" -a -e "$mm/$module/modman" ]; then
       cd "$mm/$module"
       echo_b "-- $module --" >> $tmpfile
@@ -622,7 +622,7 @@ elif [ "$action" = "deploy-all" ]; then
   if [ -n "$1" ]; then echo "Too many arguments to deploy-all command."; exit 1; fi
   remove_dead_links
   errors=0
-  ls -1 "$mm" | while read -d $'\n' module; do
+  for module in $(ls -1 "$mm"); do
     test -d "$mm/$module" && require_wc "$module" || continue;
     echo "Deploying $module to $root"
     if apply_modman_file "$mm/$module/modman"; then
@@ -647,7 +647,7 @@ elif [ "$action" = "update-all" ]; then
   updated=''
 
   # Fetch first in case an origin is not responding or slow
-  ls -1 "$mm" | while read -d $'\n' module; do
+  for module in $(ls -1 "$mm"); do
     test -d "$mm/$module" && require_wc "$module" || continue;
     cd "$mm/$module"
     success=1
@@ -674,7 +674,7 @@ elif [ "$action" = "update-all" ]; then
   done
 
   # Then update using merge
-  echo -en "$updated" | while read -d $'\n' module; do
+  for module in $(echo -en "$updated"); do
     test -d "$mm/$module" && require_wc "$module" || continue;
     cd "$mm/$module"
     success=0
@@ -690,7 +690,6 @@ elif [ "$action" = "update-all" ]; then
       echo "Updating $module"
       if [ -z $tracking_branch ]; then
         echo "Could not resolve remote tracking branch, code will not be updated."
-        success=1
       elif [ $FORCE -eq 1 ]; then
         git reset --hard $tracking_branch && git submodule update --init --recursive && success=1
       else
@@ -710,7 +709,7 @@ elif [ "$action" = "update-all" ]; then
   done
   remove_dead_links
   deploy_errors=0
-  ls -1 "$mm" | while read -d $'\n' module; do
+  for module in $(ls -1 "$mm"); do
     test -d "$mm/$module" && require_wc "$module" || continue;
     if apply_modman_file "$mm/$module/modman"; then
       echo -e "Deployment of '$module' complete.\n"
@@ -732,7 +731,7 @@ elif [ "$action" = "repair" ]; then
   mv "$mm" "$mm-repairing" || { echo_b "ERROR: Could not temporarily rename .modman directory."; exit 1; }
   remove_dead_links
   mv "$mm-repairing" "$mm" || { echo_b "ERROR: Could not restore .modman directory."; exit 1; }
-  ls -1 "$mm" | while read -d $'\n' module; do
+  for module in $(ls -1 "$mm"); do
     test -d "$mm/$module" && require_wc "$module" || continue;
     remove_basedirs "$module" &&
     apply_modman_file "$mm/$module/modman" &&
