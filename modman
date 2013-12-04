@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.9.6"
+version="1.9.7"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -656,18 +656,18 @@ elif [ "$action" = "update-all" ]; then
       success=0
       if [ $FORCE -eq 1 ]; then
         if git status -s | grep -vq '??'; then
-          git fetch --force && success=1
-        else
           echo "Cannot do --force update, module has uncommitted changes."
-		  exit 1
-		fi
+          exit 1
+        else
+          git fetch --force && success=1
+        fi
       else
         git fetch && success=1
       fi
-	fi
+    fi
     if [ $success -eq 1 ]; then
       updated="${updated}${module}\n"
-	else
+    else
       echo_b -e "Failed to fetch updates for $module\n"
       update_errors=$((update_errors+1))
     fi
