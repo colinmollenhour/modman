@@ -21,7 +21,7 @@
 #    - The following common utilities must be locatable in your $PATH
 #       grep (POSIX), find, ln, cp, basename, dirname, readlink
 
-version="1.9.7"
+version="1.9.8"
 script=${0##*/}
 usage="\
 Module Manager (v$version)
@@ -43,6 +43,7 @@ Global Commands:
   [--force]          overwrite existing files, ignore untrusted cert warnings
   [--no-local]       skip processing of modman.local files
   [--no-clean]       skip cleaning of broken symlinks
+  [--no-shell]       skip processing @shell lines
 
 Module Commands:
   $script <command> [<module>] [<options>] [[--] <VCS options>]
@@ -57,6 +58,7 @@ Module Commands:
   [--force]          overwrite existing files, ignore untrusted cert warnings
   [--no-local]       skip processing of modman.local files
   [--no-clean]       skip cleaning of broken symlinks
+  [--no-shell]       skip processing @shell lines
   [--basedir <path>] on checkout/clone, specifies a base for module deployment
   [--copy]           deploy by copying files instead of symlinks
   [<VCS options>]    specify additional parameters to VCS checkout/clone
@@ -391,6 +393,7 @@ apply_modman_file ()
     # Run commands on the shell!
     # temporary file is workaround so that script can receive stdin
     if [ "$target" = "@shell" ]; then
+	  [ $NOSHELL -eq 0 ] || continue
       cd "$module_dir"
       export PROJECT=$root/${basedir%%/}
       export MODULE=$module_dir
@@ -530,16 +533,18 @@ fi
 
 # Check for common option overrides
 FORCE=0               # --force option off by default
-LOCAL=1               # --no-local option off by default
-COPY=0                # --copy option off by default
+NOLOCAL=0             # --no-local option off by default
 NOCLEAN=0             # --no-clean off by default
+NOSHELL=0             # --no-shell option off by default
+COPY=0                # --copy option off by default
 basedir=''
 while true; do
   case "$1" in
-    --force)    FORCE=1; shift ;;
-    --no-local) LOCAL=0; shift ;;
-    --copy)     COPY=1; shift ;;
-    --no-clean) NOCLEAN=1; shift ;;
+    --force)       FORCE=1; shift ;;
+    --no-local)    NOLOCAL=1; shift ;;
+    --no-clean)    NOCLEAN=1; shift ;;
+    --no-shell)    NOSHELL=1; shift ;;
+    --copy)        COPY=1; shift ;;
     --basedir)
       shift; basedir="$1"; shift
       if ! [ -n "$basedir" -a -d "$root/$basedir" ]; then
@@ -627,7 +632,7 @@ elif [ "$action" = "deploy-all" ]; then
     echo "Deploying $module to $root"
     if apply_modman_file "$mm/$module/modman"; then
       echo -e "Deployment of '$module' complete.\n"
-      if [ $LOCAL -gt 0 -a -r "$mm/$module/modman.local" ]; then
+      if [ $NOLOCAL -eq 0 -a -r "$mm/$module/modman.local" ]; then
         apply_modman_file "$mm/$module/modman.local" && echo "Applied local modman file for $module"
       fi
     else
@@ -713,7 +718,7 @@ elif [ "$action" = "update-all" ]; then
     test -d "$mm/$module" && require_wc "$module" || continue;
     if apply_modman_file "$mm/$module/modman"; then
       echo -e "Deployment of '$module' complete.\n"
-      if [ $LOCAL -gt 0 -a -r "$mm/$module/modman.local" ]; then
+      if [ $NOLOCAL -eq 0 -a -r "$mm/$module/modman.local" ]; then
         apply_modman_file "$mm/$module/modman.local" && echo "Applied local modman file for $module"
       fi
     else
@@ -736,7 +741,7 @@ elif [ "$action" = "repair" ]; then
     remove_basedirs "$module" &&
     apply_modman_file "$mm/$module/modman" &&
     echo -e "Repaired $module.\n"
-    if [ $LOCAL -gt 0 -a -r "$mm/$module/modman.local" ]; then
+    if [ $NOLOCAL -eq 0 -a -r "$mm/$module/modman.local" ]; then
       apply_modman_file "$mm/$module/modman.local" && echo "Applied local modman file for $module"
     fi
   done
@@ -809,10 +814,11 @@ fi
 # Get optional args again (allow them to come after the module name)
 while true; do
   case "$1" in
-    --force)    FORCE=1; shift ;;
-    --no-local) LOCAL=0; shift ;;
-    --no-clean) NOCLEAN=1; shift ;;
-    --copy)     COPY=1; shift ;;
+    --force)       FORCE=1; shift ;;
+    --no-local)    NOLOCAL=1; shift ;;
+    --no-clean)    NOCLEAN=1; shift ;;
+    --no-shell)    NOSHELL=1; shift ;;
+    --copy)        COPY=1; shift ;;
     --basedir)
       shift; basedir="$1"; shift
       if ! [ -n "$basedir" -a -d "$root/$basedir" ]; then
@@ -855,7 +861,7 @@ case "$action" in
 
     remove_dead_links
     apply_modman_file "$wc_desc" && echo "Update of $module complete."
-    if [ $LOCAL -gt 0 -a -r "$wc_desc.local" ]; then
+    if [ $NOLOCAL -eq 0 -a -r "$wc_desc.local" ]; then
       apply_modman_file "$wc_desc.local" && echo "Applied local modman file for $module"
     fi
     ;;
@@ -924,7 +930,7 @@ case "$action" in
   deploy)
     require_wc "$module" || exit 1
     apply_modman_file "$wc_desc" && echo "$module has been deployed under $root"
-    if [ $LOCAL -gt 0 -a -r "$wc_desc.local" ]; then
+    if [ $NOLOCAL -eq 0 -a -r "$wc_desc.local" ]; then
       apply_modman_file "$wc_desc.local" && echo "Applied local modman file for $module"
     fi
     ;;
