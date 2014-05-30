@@ -14,7 +14,7 @@ fi
 
 # test if curl/wget is installed
 if hash curl 2>&- ; then
-    CMD="curl -s -o"
+    CMD="curl --silent --output"
 elif hash wget 2>&- ; then
     CMD="wget -q -O"
 else
@@ -22,7 +22,7 @@ else
    exit 1
 fi
 
-$CMD $HOME/bin/modman https://raw.github.com/colinmollenhour/modman/master/modman
+$CMD $HOME/bin/modman https://raw.githubusercontent.com/colinmollenhour/modman/master/modman
 
 chmod +x $HOME/bin/modman
 
