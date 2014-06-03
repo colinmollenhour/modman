@@ -13,7 +13,7 @@ All of your cloned/checked-out modules will be kept in a directory named
 
 ## Requirements
 
-  * Linux/Unix or OSX (not cygwin)
+  * Linux/Unix or OSX (not cygwin, see _Windows Users_ below)
   * bash
   * Common utilities available in your PATH: grep (POSIX), find, ln, cp, basename, dirname
   * Web server must follow symlinks
@@ -23,6 +23,12 @@ All of your cloned/checked-out modules will be kept in a directory named
 ![Allow Symlinks](https://f.cloud.github.com/assets/1337461/43324/820d4d96-567f-11e2-947a-167bf76db33f.png)
   
 *NOTE:* There is no additional security risk to allowing symlinks, despite the warning which says otherwise...
+
+### Windows Users
+
+Windows (including cygwin) is not supported by this script, but there is a [PHP-port of
+modman](https://github.com/sitewards/modman-php) which works on Windows. I am not affiliated
+with the authors and do not provide support for the PHP port, only a link here for reference.
 
 ## Installation
 
