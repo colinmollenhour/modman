@@ -557,11 +557,11 @@ run_automodman () #"$module" "$mm" "$wc_dir" "$wc_desc"
 				if [[ $prevmatch -eq 0 ]]; then #make sure we have not previously matched
 
 					#pre-existing path: yes | no?			
-					if grep -rq "$pathname$" "${amm}/"*"/modman" #target is what is important so find end line not beginning line
+					if grep -rq "\s$pathname$" "${amm}/"*"/modman" #target is what is important so find end line not beginning line
 					then #pre-existing path: yes
 						echo "..."
 						echo "A path was found that exists in below modman description file" #error
-						grep -r --color=always "$pathname$" "${amm}/"*"/modman"
+						grep -r --color=always "\s$pathname$" "${amm}/"*"/modman"
 						echo "It is therefore presently illegal for it to be included in this module." 
 						echo "..."
 						if [[ -d $f ]]; then
