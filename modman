@@ -393,7 +393,7 @@ apply_modman_file ()
     # Run commands on the shell!
     # temporary file is workaround so that script can receive stdin
     if [ "$target" = "@shell" ]; then
-	  [ $NOSHELL -eq 0 ] || continue
+      [ $NOSHELL -eq 0 ] || continue
       cd "$module_dir"
       export PROJECT=$root/${basedir%%/}
       export MODULE=$module_dir
@@ -408,7 +408,7 @@ apply_modman_file ()
     local src=$module_dir/$target
     local dest=$root/${basedir}${real%/}
     dest=${dest/\/\//\/} # Replace // with /
-	dest=${dest%/} # Strip trailing /
+    dest=${dest%/} # Strip trailing /
 
     # Handle globbing (extended globbing enabled)
     shopt -s extglob
@@ -443,15 +443,32 @@ apply_path ()
 {
   local src="$1"; local dest="$2"; local target="$3"; local real="$4"; local line="$5"
 
-  # Make symlinks relative to mmroot only if the base path is not itself in a symlinked path
-  if [ $COPY -eq 0 ] && [ "${dest%/*}" == "$($readlink_missing "${dest%/*}")" ]; then
-    local reldest=${dest#$mmroot/}; reldest=${reldest#/}
-    if [ "$reldest" != "${reldest%/*}" ]; then
-      reldest=$(IFS=/; for d in ${reldest%/*}; do echo -n '../'; done)
+  # Make symlinks relative
+  if [ $COPY -eq 0 ]; then
+    local realpath=$($readlink_missing "${dest%/*}"); local commonpath=""
+    if [ "${dest%/*}" == "${realpath}" ]; then
+      # Use modman root as common path if destination is not itself a symlinked path
+      commonpath="${mmroot%/}"
     else
-      reldest=""
+      # Search for longest common path as symlink target
+      for ((i=0; i<${#dest}; i++)); do
+        if [[ "${dest:i:1}" != "${realpath:i:1}" ]]; then
+          commonpath="${dest:0:i}"
+          commonpath="${commonpath%/*}"
+          break
+        fi
+      done
     fi
-    src=${reldest}${src#$mmroot/}
+    # Replace destination (less common path) with ../*
+    if [ "$commonpath" != "" ]; then
+      local reldest="${dest#$commonpath/}"
+      if [ "$reldest" != "${reldest%/*}" ]; then
+        reldest=$(IFS=/; for d in ${reldest%/*}; do echo -n '../'; done)
+      else
+        reldest=""
+      fi
+      src="${reldest}${src#$commonpath/}"
+    fi
   fi
 
   # Handle cases where files already exist at the destination or link does not match expected destination
