@@ -911,6 +911,9 @@ case "$action" in
     elif [ "$action" = "clone" ]; then
       verb='cloned'
       git clone --recursive "$src" $@ "$module" && success=1
+      if [ -f ../.gitmodules ]; then
+        git submodule add $src $module
+      fi
     elif [ "$action" = "hgclone" ]; then
       verb='cloned'
       hg clone "$src" $@ "$module" && success=1
