@@ -19,7 +19,7 @@ DEST="$HOME/bin/modman"
 if hash curl 2>&- ; then
     CMD="curl -s -L $SRC -o $DEST"
 elif hash wget 2>&- ; then
-    CMD="wget -q -O $DEST $SRC"
+    CMD="wget -q --no-check-certificate -O $DEST $SRC"
 else
    echo "You need to have curl or wget installed."
    exit 1

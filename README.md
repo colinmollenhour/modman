@@ -33,7 +33,7 @@ with the authors and do not provide support for the PHP port, only a link here f
 ## Installation
 
 ```
-bash < <(wget -q -O - https://raw.github.com/colinmollenhour/modman/master/modman-installer)
+bash < <(wget -q --no-check-certificate -O - https://raw.github.com/colinmollenhour/modman/master/modman-installer)
 ```
 
 or
