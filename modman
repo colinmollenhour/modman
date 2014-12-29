@@ -247,16 +247,34 @@ echo_b ()
   fi
 }
 
+#############################################################
+# Colors in terminal
+yellow () { if [ $ISTTY -eq 1 ]; then tput setaf 3; fi; }
+red () { if [ $ISTTY -eq 1 ]; then tput setaf 1; fi; }
+
+#############################################################
+# Handling warning messages
+warning ()
+{
+  echo -e "$(bold)$(yellow)WARNING:$(unbold) "$1
+}
+
+#############################################################
+# Handling Error messages
+error ()
+{
+  echo -e "$(bold)$(red)ERROR:$(unbold) "$1
+}
 
 #############################################################
 # Check for existence of a module directory and modman file
 require_wc ()
 {
   if ! [ -d "$mm/$1" ]; then
-    echo_b "ERROR: $1 has not been checked out."; return 1
+    error "$1 has not been checked out."; return 1
   fi
   if ! [ -r "$mm/$1/modman" ]; then
-    echo_b "ERROR: $1 does not contain a \"modman\" module description file."; return 1
+    error "$1 does not contain a \"modman\" module description file."; return 1
   fi
   return 0
 }
@@ -314,7 +332,7 @@ set_basedir ()
     echo -e "# This file was created by modman. Module base directory:\n$basedir" \
       > "$module_dir/.basedir"
     if ! [ $? ]; then
-      echo "ERROR: Could not write to file: $module_dir/.basedir."
+      error "Could not write to file: $module_dir/.basedir."
       return 1
     fi
   fi
@@ -353,7 +371,7 @@ apply_modman_file ()
 
     # Sanity check for empty data
     if [ -z "$target" -o -z "$real" ]; then
-      echo_b -e "ERROR: Invalid input in modman file ($relpath):\n $line"
+      error "Invalid input in modman file ($relpath):\n $line"
       return 1
     fi
 
@@ -365,7 +383,7 @@ apply_modman_file ()
       import=$module_dir/${import_path%/}/modman
       if ! [ -r "$import" ]; then
         relimport=${import:$((${#mmroot}+1))}
-        echo_b -e "ERROR: modman file not found ($relimport):\n $line"
+        error "modman file not found ($relimport):\n $line"
         return 1
       fi
 
@@ -376,7 +394,7 @@ apply_modman_file ()
         import_base=${basedir}${import_base%%/}
         if ! [ -d "$root/$import_base" ]; then
           if ! mkdir -p "$root/$import_base"; then
-            echo "ERROR: Could not create import base directory: $import_base"
+            error "Could not create import base directory: $import_base"
             return 1
           fi
           echo "Created import base directory: $import_base"
@@ -422,7 +440,7 @@ apply_modman_file ()
     # Handle aliases that do not exist
     if ! [ -e "$src" ];
     then
-      echo -e "$(bold)WARNING:$(unbold) Target does not exist ($relpath):\n $line"
+      warning "Target does not exist ($relpath):\n $line"
       continue
     fi
 
@@ -480,7 +498,7 @@ apply_path ()
       echo   "(Run with $(bold)--force$(unbold) to force removal of existing files and directories.)"
       return 1
     elif ! [ -L "$dest" ] || [ "$src" != "$(readlink "$dest")" ]; then
-      echo "$(bold)WARNING:$(unbold) Removing conflicting $($stat_type "$dest"): $dest"
+      warning "Removing conflicting $($stat_type "$dest"): $dest"
       rm -rf "$dest" || return 1
     fi
   fi
@@ -494,7 +512,7 @@ apply_path ()
     fi
     # Create parent directories
     if ! mkdir -p "${dest%/*}"; then
-      echo_b -e "ERROR: Unable to create parent directory (${dest%/*}):\n $line"
+      error "Unable to create parent directory (${dest%/*}):\n $line"
       return 1
     fi
     # Symlink or copy
@@ -509,7 +527,7 @@ apply_path ()
     if [ $success -eq 1 ]; then
       printf " Applied: %-30s  %s\n" "$target" "$real"
     else
-      echo_b -e "ERROR: Unable to $verb ($dest):\n $line"
+      error "Unable to $verb ($dest):\n $line"
       return 1
     fi
   fi
@@ -533,7 +551,7 @@ _pwd=$(pwd -P)
 root=$_pwd
 while ! [ -d "$root/.modman" ]; do
   if [ "$root" = "/" ]; then echo -e $mm_not_found && exit 1; fi
-  cd .. || { echo -e "ERROR: Could not traverse up from $root\n$mm_not_found" && exit 1; }
+  cd .. || { error "Could not traverse up from $root\n$mm_not_found" && exit 1; }
   root=$(pwd)
 done
 
@@ -544,7 +562,7 @@ mm=$root/.modman      # path to .modman
 newroot=$(get_basedir "$mm")
 if [ -n "$newroot" ]; then
   cd "$mmroot/$newroot" || {
-    echo -e "ERROR: Could not change to basedir specified in .basedir file: $newroot"
+    error "Could not change to basedir specified in .basedir file: $newroot"
     exit 1
   }
   root=$(pwd)
@@ -655,7 +673,7 @@ elif [ "$action" = "deploy-all" ]; then
         apply_modman_file "$mm/$module/modman.local" && echo "Applied local modman file for $module"
       fi
     else
-      echo_b -e "Error occurred while deploying '$module'.\n"
+      error "Error occurred while deploying '$module'.\n"
       errors=$((errors+1))
     fi
   done
@@ -727,7 +745,7 @@ elif [ "$action" = "update-all" ]; then
     fi
     echo
     if [ $success -ne 1 ]; then
-      echo_b -e "Error occurred while updating $module\n"
+      error "Error occurred while updating $module\n"
       update_errors=$((update_errors+1))
     fi
   done
@@ -741,7 +759,7 @@ elif [ "$action" = "update-all" ]; then
         apply_modman_file "$mm/$module/modman.local" && echo "Applied local modman file for $module"
       fi
     else
-      echo_b -e "Error occurred while deploying '$module'.\n"
+      error "Error occurred while deploying '$module'.\n"
       deploy_errors=$((deploy_errors+1))
     fi
   done
@@ -752,9 +770,9 @@ elif [ "$action" = "update-all" ]; then
 # Handle "repair" command
 elif [ "$action" = "repair" ]; then
   echo "Repairing links, do not interrupt."
-  mv "$mm" "$mm-repairing" || { echo_b "ERROR: Could not temporarily rename .modman directory."; exit 1; }
+  mv "$mm" "$mm-repairing" || { error "Could not temporarily rename .modman directory."; exit 1; }
   remove_dead_links
-  mv "$mm-repairing" "$mm" || { echo_b "ERROR: Could not restore .modman directory."; exit 1; }
+  mv "$mm-repairing" "$mm" || { error "Could not restore .modman directory."; exit 1; }
   for module in $(ls -1 "$mm"); do
     test -d "$mm/$module" && require_wc "$module" || continue;
     remove_basedirs "$module" &&
@@ -941,7 +959,7 @@ case "$action" in
       echo "Successfully $verb new module '$module'$using_basedir"
     else
       if [ -d "$wc_dir" ]; then rm -rf "$wc_dir"; fi
-      echo "Error trying to $action new module '$module', operation cancelled."
+      error "trying to $action new module '$module', operation cancelled."
       exit 1
     fi
     ;;
