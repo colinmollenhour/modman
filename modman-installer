@@ -4,7 +4,7 @@ if [ ! -d "$HOME/bin" ] ; then
     mkdir $HOME/bin
 
     if [ -f $HOME/.profile ]; then
-        . $HOME/.profile
+        tty -s && . $HOME/.profile
 
         if [[ ":$PATH:" != *":$HOME/bin:"* ]]; then
             echo -e '\nPATH="$HOME/bin:$PATH"' >> $HOME/.profile
@@ -12,18 +12,21 @@ if [ ! -d "$HOME/bin" ] ; then
     fi
 fi
 
+SRC="https://raw.githubusercontent.com/colinmollenhour/modman/master/modman"
+DEST="$HOME/bin/modman"
+
 # test if curl/wget is installed
 if hash curl 2>&- ; then
-    CMD="curl -sL -o"
+    CMD="curl -s -L $SRC -o $DEST"
 elif hash wget 2>&- ; then
-    CMD="wget -q -O"
+    CMD="wget -q -O $DEST $SRC"
 else
    echo "You need to have curl or wget installed."
    exit 1
 fi
 
-$CMD $HOME/bin/modman https://raw.githubusercontent.com/colinmollenhour/modman/master/modman
+$CMD
 
-chmod +x $HOME/bin/modman
+chmod +x $DEST
 
 echo "Done. Modman installed in $HOME/bin/modman"
