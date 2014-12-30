@@ -798,6 +798,8 @@ fi
 #############################################
 
 REGEX_ACTION='^(update|deploy|checkout|clone|hgclone|link|remove)$'
+REGEX_EXISTING_MODULE_ACTION='^(update|deploy|remove)$'
+REGEX_OPTION='^--[a-zA-Z0-9_-]+$'
 REGEX_NEW_MODULE='^(checkout|clone|hgclone|link)$'
 REGEX_BAD_MODULE="($REGEX_ACTION| )"
 REGEX_MODULE='^[a-zA-Z0-9_-]+$'
@@ -811,7 +813,7 @@ module=''
 src=''
 
 # If valid module is specified on command line
-if [ -z "$module" -a -n "$1" -a -d "$mm/$1" ] || [[ "$1" =~ $REGEX_MODULE ]]; then
+if [ -z "$module" -a -n "$1" -a -d "$mm/$1" ] || [[ "$1" =~ $REGEX_MODULE ]] && [[ ! "$1" =~ $REGEX_OPTION ]]; then
   module=$1; shift
 fi
 
@@ -840,9 +842,23 @@ if [ -z "$module" ]; then
 fi
 
 # Module must be next argument
-if [ -z "$module" -a -n "$1" ]; then
+if [ -z "$module" -a -n "$1" ] && [[ ! "$1" =~ $REGEX_OPTION ]]; then
   module=$1; shift
 fi
+
+# Allow the user to choose from list of existing modules is the action is performed on an existing module.
+if [ -z "$module" ] && [[ "$action" =~ $REGEX_EXISTING_MODULE_ACTION ]]; then
+  PS3="Please specify the module you want to $action: "
+  select option in $(ls -1 "$mm")
+  do
+    if [ ! -z "$option" ]; then
+      module=$option
+      break;
+    fi
+  done
+fi
+
+# No module was specified
 if [ -z "$module" ]; then
   echo "Not enough arguments (no module specified)"
   exit 1
