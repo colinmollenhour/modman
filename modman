@@ -44,6 +44,7 @@ Global Commands:
   --tutorial         show a brief tutorial on using modman
   --version          display the modman script's version
   [--force]          overwrite existing files, ignore untrusted cert warnings
+  [--quiet]          prevent output of non-interactive commands
   [--no-local]       skip processing of modman.local files
   [--no-clean]       skip cleaning of broken symlinks
   [--no-shell]       skip processing @shell lines
@@ -271,6 +272,12 @@ error ()
 {
   echo -e "$(bold)$(red)ERROR:$(unbold) "$1
 }
+#############################################################
+# Usual output
+log ()
+{
+  [ $QUIET -eq 0 ] && printf "$@" && [ $# -eq 1 ] && echo ""
+}
 
 #############################################################
 # Check for existence of a module directory and modman file
@@ -375,15 +382,15 @@ set_skipped ()
 
   if [ "$skip" = 1 ]; then
     if get_skipped $module; then
-      echo "Module $module already skipped."
+      log "Module $module already skipped."
       exit 1
     else
       echo $module >> "$SKIP_FILE"
-      echo "Module $module added to skip list."
+      log "Module $module added to skip list."
     fi
   else
     grep -v "^$module$" "$SKIP_FILE" > "$SKIP_FILE.tmp"; mv "$SKIP_FILE.tmp" "$SKIP_FILE" 
-    echo "Module $module removed from skip list."
+    log "Module $module removed from skip list."
   fi
 
   return 0
@@ -397,7 +404,7 @@ get_abs_filename() {
 
 remove_module_links ()
 {
-  echo "Removing links for module $module."
+  log "Removing links for module $module."
   local module_dir="$mm/$module"
   for line in $(find $root -type l); do
     if [[ $(get_abs_filename "$line") =~ ^"$module_dir".* ]]; then
@@ -466,7 +473,7 @@ apply_modman_file ()
             error "Could not create import base directory: $import_base"
             return 1
           fi
-          echo "Created import base directory: $import_base"
+          log "Created import base directory: $import_base"
         fi
         if ! set_basedir "$module_dir/$import_path" "$import_base"; then
           return 1
@@ -567,7 +574,7 @@ apply_path ()
       if [[ "$line" != *"$real"* ]]; then
         echo " $($stat_type "$dest") path: $real"
       fi
-      echo   "(Run with $(bold)--force$(unbold) to force removal of existing files and directories.)"
+      log   "(Run with $(bold)--force$(unbold) to force removal of existing files and directories.)"
       return 1
     elif ! [ -L "$dest" ] || [ "$src" != "$(readlink "$dest")" ]; then
       warning "Removing conflicting $($stat_type "$dest"): $dest"
@@ -597,7 +604,7 @@ apply_path ()
       ln -s "$src" "$dest" && success=1
     fi
     if [ $success -eq 1 ]; then
-      printf " Applied: %-30s  %s\n" "$target" "$real"
+      log " Applied: %-30s  %s\n" "$target" "$real"
     else
       error "Unable to $verb ($dest):\n $line"
       return 1
@@ -739,6 +746,7 @@ fi
 
 # Check for common option overrides
 FORCE=0               # --force option off by default
+QUIET=0               # --quiet option off by default
 NOLOCAL=0             # --no-local option off by default
 NOCLEAN=0             # --no-clean off by default
 NOSHELL=0             # --no-shell option off by default
@@ -747,6 +755,7 @@ basedir=''
 while true; do
   case "$1" in
     --force)       FORCE=1; shift ;;
+    --quiet|-q)    QUIET=1; shift ;;
     --no-local)    NOLOCAL=1; shift ;;
     --no-clean)    NOCLEAN=1; shift ;;
     --no-shell)    NOSHELL=1; shift ;;
@@ -836,12 +845,12 @@ elif [ "$action" = "deploy-all" ]; then
   for module in $(ls -1 "$mm"); do
     test -d "$mm/$module" && require_wc "$module" || continue;
     if get_skipped "$module"; then
-      echo "Skipping module $module due to .modman-skip file."
+      log "Skipping module $module due to .modman-skip file."
       continue
     fi
-    echo "Deploying $module to $root"
+    log "Deploying $module to $root"
     if apply_modman_file "$mm/$module/modman"; then
-      echo -e "Deployment of '$module' complete.\n"
+      log "Deployment of '$module' complete.\n"
       if [ $NOLOCAL -eq 0 -a -r "$mm/$module/modman.local" ]; then
         apply_modman_file "$mm/$module/modman.local" && echo "Applied local modman file for $module"
       fi
@@ -850,7 +859,7 @@ elif [ "$action" = "deploy-all" ]; then
       errors=$((errors+1))
     fi
   done
-  echo "Deployed all modules with $errors errors."
+  log "Deployed all modules with $errors errors."
   exit 0
 
 ###############################
@@ -867,7 +876,7 @@ elif [ "$action" = "update-all" ]; then
     cd "$mm/$module"
     success=1
     if [ -d .git ] && [ "$(git remote)" != "" ]; then
-      echo "Fetching changes for $module"
+      log "Fetching changes for $module"
       success=0
       if [ $FORCE -eq 1 ]; then
         if git status -s | grep -vq '??'; then
@@ -894,7 +903,7 @@ elif [ "$action" = "update-all" ]; then
     cd "$mm/$module"
     success=0
     if [ -d .svn ]; then
-      echo "Updating $module"
+      log "Updating $module"
       if [ $FORCE -eq 1 ]; then
         svn update --force --non-interactive --trust-server-cert && success=1
       else
@@ -902,7 +911,7 @@ elif [ "$action" = "update-all" ]; then
       fi
     elif [ -d .git ] && [ "$(git remote)" != "" ]; then
       tracking_branch=$(get_tracking_branch)
-      echo "Updating $module"
+      log "Updating $module"
       if [ -z $tracking_branch ]; then
         echo "Could not resolve remote tracking branch, code will not be updated."
       elif [ $FORCE -eq 1 ]; then
@@ -911,12 +920,12 @@ elif [ "$action" = "update-all" ]; then
         git merge $tracking_branch && git submodule update --init --recursive && success=1
       fi
     elif [ -d .hg ]; then
-      echo "Updating $module"
+      log "Updating $module"
       hg pull && hg update && success=1
     else
       success=1
     fi
-    echo
+    log ""; # Forced new line, respect --quiet
     if [ $success -ne 1 ]; then
       error "Error occurred while updating $module\n"
       update_errors=$((update_errors+1))
@@ -927,7 +936,7 @@ elif [ "$action" = "update-all" ]; then
   for module in $(ls -1 "$mm"); do
     test -d "$mm/$module" && require_wc "$module" || continue;
     if apply_modman_file "$mm/$module/modman"; then
-      echo -e "Deployment of '$module' complete.\n"
+      log "Deployment of '$module' complete."
       if [ $NOLOCAL -eq 0 -a -r "$mm/$module/modman.local" ]; then
         apply_modman_file "$mm/$module/modman.local" && echo "Applied local modman file for $module"
       fi
@@ -936,23 +945,26 @@ elif [ "$action" = "update-all" ]; then
       deploy_errors=$((deploy_errors+1))
     fi
   done
-  echo "Updated all modules with $update_errors update errors and $deploy_errors deploy errors."
+  log "Updated all modules with $update_errors update errors and $deploy_errors deploy errors."
   exit 0
 
 ###########################
 # Handle "repair" command
 elif [ "$action" = "repair" ]; then
-  echo "Repairing links, do not interrupt."
+  log "Repairing links, do not interrupt."
   mv "$mm" "$mm-repairing" || { error "Could not temporarily rename .modman directory."; exit 1; }
   remove_dead_links
   mv "$mm-repairing" "$mm" || { error "Could not restore .modman directory."; exit 1; }
   for module in $(ls -1 "$mm"); do
     test -d "$mm/$module" && require_wc "$module" || continue;
+    log "Deploying $module to $root"
     remove_basedirs "$module" &&
     apply_modman_file "$mm/$module/modman" &&
-    echo -e "Repaired $module.\n"
+    log "Repaired $module."
     if [ $NOLOCAL -eq 0 -a -r "$mm/$module/modman.local" ]; then
-      apply_modman_file "$mm/$module/modman.local" && echo "Applied local modman file for $module"
+      if apply_modman_file "$mm/$module/modman.local"; then
+        log "Applied local modman file for $module"
+      fi
     fi
   done
   exit 0
@@ -960,7 +972,7 @@ elif [ "$action" = "repair" ]; then
 ###########################
 # Handle "clean" command
 elif [ "$action" = "clean" ]; then
-  echo "Cleaning broken links."
+  log "Cleaning broken links."
   NOCLEAN=0
   remove_dead_links
   exit 0
