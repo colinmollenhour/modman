@@ -33,13 +33,13 @@ with the authors and do not provide support for the PHP port, only a link here f
 ## Installation
 
 ```
-bash < <(wget -O - https://raw.github.com/colinmollenhour/modman/master/modman-installer)
+bash < <(wget -q --no-check-certificate -O - https://raw.github.com/colinmollenhour/modman/master/modman-installer)
 ```
 
 or
 
 ```
-bash < <(curl -s https://raw.github.com/colinmollenhour/modman/master/modman-installer)
+bash < <(curl -s -L https://raw.github.com/colinmollenhour/modman/master/modman-installer)
 ```
 
 ```
@@ -47,7 +47,7 @@ source ~/.profile
 ```
 
 Note: modman is simply a bash script, so to use it you just need to place it in your $PATH
-and change it's mode to executable.
+and change its mode to executable.
 
 ## Getting Started
 

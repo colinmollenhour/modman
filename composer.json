@@ -7,5 +7,6 @@
         {
             "name": "Colin Mollenhour"
         }
-    ]
+    ],
+    "bin": ["modman"]
 }
