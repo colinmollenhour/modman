@@ -64,10 +64,6 @@ Module Commands:
   [--no-shell]       skip processing @shell lines
   [--basedir <path>] on checkout/clone, specifies a base for module deployment
   [--copy]           deploy by copying files instead of symlinks
-  [--automodman]     loops through module directory:
-		     - asks to include files & directories in new modman file
-		     - does not create symlinks
-  [--autoforce]      a modifier to checkout --automodman which forces the creation of symlinks
   [<VCS options>]    specify additional parameters to VCS checkout/clone
 "
 tutorial="\
@@ -961,8 +957,6 @@ while true; do
     --no-clean)    NOCLEAN=1; shift ;;
     --no-shell)    NOSHELL=1; shift ;;
     --copy)        COPY=1; shift ;;
-    --automodman)  AUTOMODMAN=1; shift ;;
-    --autoforce) AUTOFORCE=1; shift ;;
     --basedir)
       shift; basedir="$1"; shift
       if ! [ -n "$basedir" -a -d "$root/$basedir" ]; then
@@ -1057,14 +1051,6 @@ case "$action" in
       cd "$mm"
     fi
 
-    if [[ $AUTOMODMAN -eq 1 ]]; then
-	echo "$wc_dir now exists, you could go explore the directory structure before continuing with automodman?"
-	run_automodman "$module" "$mm" "$wc_dir" "$wc_desc" || exit 1
-	if ! [[ $AUTOFORCE -eq 1 ]]; then
-        	echo "automodman is a coward and is refusing to create symlinks because --autoforce wasnt used"
-		exit 1
-      	fi	
-    fi
     if
       [ $success -eq 1 ] &&
       require_wc "$module" && cd "$wc_dir" &&
