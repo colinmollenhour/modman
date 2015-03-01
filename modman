@@ -550,7 +550,6 @@ run_automodman () #"$module" "$mm" "$wc_dir" "$wc_desc"
 	#echo "in base directory $amm"
 	#echo "in working copy $awc_dir"
 	#echo "modman file will be or is $awc_desc"
-
 	
 	#does the modman file exist?
 	#yes
@@ -589,8 +588,10 @@ run_automodman () #"$module" "$mm" "$wc_dir" "$wc_desc"
 				#if substring then do recurse				
 				if [[ $prevmatch -eq 0 ]]; then #make sure we have not previously matched
 
+					#alter the pathname into a regex that will not match comments
+
 					#pre-existing path: yes | no?			
-					if grep -rq "\s$pathname$" "${amm}/"*"/modman" #target is what is important so find end line not beginning line
+					if grep -rq "^[^#].*\s$pathname$" "${amm}/"*"/modman" #target is what is important so find end line not beginning line
 					then #pre-existing path: yes
 						echo "..."
 						echo "A path was found that exists in below modman description file" #error
