@@ -18,7 +18,7 @@ _modman()
 			opts="init --help --version --tutorial"
 			if [ -n "$mm" ]; then
 				opts="${opts} list status incoming update-all deploy-all repair clean"
-				opts="${opts} checkout clone hgclone link deploy update remove"
+				opts="${opts} checkout clone hgclone link deploy update remove automodman"
 			fi
 			;;
 		init | --help | --version | --tutorial | list | status | incoming | repair | clean | --force | --copy)
@@ -30,7 +30,7 @@ _modman()
 		deploy | update)
 			opts="$(modman list) --force --no-clean --no-local --no-shell"
 			;;
-		remove)
+		remove | automodman)
 			opts=$(modman list)
 			;;
 		*)
