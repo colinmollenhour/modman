@@ -588,8 +588,6 @@ run_automodman () #"$module" "$mm" "$wc_dir" "$wc_desc"
 				#if substring then do recurse				
 				if [[ $prevmatch -eq 0 ]]; then #make sure we have not previously matched
 
-					#alter the pathname into a regex that will not match comments
-
 					#pre-existing path: yes | no?			
 					if grep -rq "^[^#].*\s$pathname$" "${amm}/"*"/modman" #target is what is important so find end line not beginning line
 					then #pre-existing path: yes
