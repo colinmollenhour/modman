@@ -54,6 +54,9 @@ Module Commands:
   link <path>        link to a module that already exists on the local filesystem
   update             update module using the appropriate VCS
   deploy             deploy an existing module (VCS not required or used)
+  undeploy           remove an existing module without deleting the files
+  skip               prevent a module from deploying with deploy-all
+  unskip             re-enable a module to be deployed with deploy-all
   remove             remove a module (DELETES MODULE FILES)
   [--force]          overwrite existing files, ignore untrusted cert warnings
   [--no-local]       skip processing of modman.local files
@@ -336,6 +339,68 @@ set_basedir ()
       return 1
     fi
   fi
+  return 0
+}
+
+get_skipped ()
+{
+  local module=$1
+  for line in $(grep -v -e '^#' "$root/.modman-skip"); do
+    if [ $line == $module ]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+set_skipped ()
+{
+  local module=$1
+  local skip=$2
+  local SKIP_FILE="$root/.modman-skip"
+
+  if ! [ -f "$SKIP_FILE" ]; then
+    echo "# This file was created by modman. The following modules won't be deployed by deploy-all." \
+      > "$root/.modman-skip"
+    if ! [ $? ]; then
+      error "Could not write to file: $SKIP_FILE"
+      return 1
+    fi
+  fi
+
+  if [ "$skip" = 1 ]; then
+    if get_skipped $module; then
+      echo "Module $module already skipped."
+      exit 1
+    else
+      echo $module >> "$SKIP_FILE"
+      echo "Module $module added to skip list."
+    fi
+  else
+    grep -v "^$module$" "$SKIP_FILE" > "$SKIP_FILE.tmp"; mv "$SKIP_FILE.tmp" "$SKIP_FILE" 
+    echo "Module $module removed from skip list."
+  fi
+
+  return 0
+}
+
+get_abs_filename() {
+  if [ -d "$(dirname "$1")" ]; then
+    echo "$(cd "$(dirname "$1")/$(dirname "$(readlink "$1")")" && pwd)/$(basename "$1")"
+  fi
+}
+
+remove_module_links ()
+{
+  echo "Removing links for module $module."
+  local module_dir="$mm/$module"
+  for line in $(find $root -type l); do
+    if [[ $(get_abs_filename "$line") =~ ^"$module_dir".* ]]; then
+      rm "$line"
+    fi
+  done
+
   return 0
 }
 
@@ -666,6 +731,10 @@ elif [ "$action" = "deploy-all" ]; then
   errors=0
   for module in $(ls -1 "$mm"); do
     test -d "$mm/$module" && require_wc "$module" || continue;
+    if get_skipped "$module"; then
+      echo "Skipping module $module due to .modman-skip file."
+      continue
+    fi
     echo "Deploying $module to $root"
     if apply_modman_file "$mm/$module/modman"; then
       echo -e "Deployment of '$module' complete.\n"
@@ -797,7 +866,7 @@ fi
 # Handle all other module-specific commands
 #############################################
 
-REGEX_ACTION='^(update|deploy|checkout|clone|hgclone|link|remove)$'
+REGEX_ACTION='^(update|deploy|undeploy|skip|unskip|checkout|clone|hgclone|link|remove)$'
 REGEX_NEW_MODULE='^(checkout|clone|hgclone|link)$'
 REGEX_BAD_MODULE="($REGEX_ACTION| )"
 REGEX_MODULE='^[a-zA-Z0-9_-]+$'
@@ -970,6 +1039,19 @@ case "$action" in
     if [ $NOLOCAL -eq 0 -a -r "$wc_desc.local" ]; then
       apply_modman_file "$wc_desc.local" && echo "Applied local modman file for $module"
     fi
+    ;;
+
+  undeploy)
+    require_wc "$module" || exit 1
+    remove_module_links "$module" || exit 1
+    ;;
+
+  skip)
+    set_skipped "$module" 1 || exit 1
+    ;;
+
+  unskip)
+    set_skipped "$module" 0 || exit 1
     ;;
 
   remove)
