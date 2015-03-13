@@ -37,6 +37,9 @@ Global Commands:
   deploy-all         deploy all modules (no VCS interaction)
   repair             rebuild all modman-created symlinks (no updates performed)
   clean              clean up broken symlinks (run this after deleting a module)
+  automodman	     loops through module directory:
+		     - asks to include files & directories in new modman file
+		     - does not create symlinks
   --help             display this help message
   --tutorial         show a brief tutorial on using modman
   --version          display the modman script's version
@@ -598,6 +601,103 @@ apply_path ()
   fi
   return 0
 }
+###########################################################################
+# Automatically create a modman file
+run_automodman () #"$module" "$mm" "$wc_dir" "$wc_desc"
+{
+	# returns 0 on success 1 on error	
+	amodule=$1
+	amm=$2
+	awc_dir=$3
+	awc_desc=$4
+
+	#echo "building modman file for $amodule"
+	#echo "in base directory $amm"
+	#echo "in working copy $awc_dir"
+	#echo "modman file will be or is $awc_desc"
+	
+	#does the modman file exist?
+	#yes
+	if [ -r "$awc_desc" ]; then
+		echo "$awc_desc file already exists"
+		return 0 #exit without error
+		
+	#no
+	else
+		#touch modman
+		echo "creating modman file for $amodule"
+		touch $awc_desc
+	fi
+	#loop through files
+	declare -a incpaths
+
+	for f in $(find $awc_dir \( ! -iname 'modman' ! -regex "$awc_dir.*/\..*" \)) #ignore hidden files and modman
+		do	
+			#strip path down
+			alngth=${#awc_dir} #length of working directory to remove from path
+			alngth=$((alngth+1)) #increase by one to account for the fact we added a slash
+			pathname=${f:$alngth}
+
+			#first f tends to be empty because of our stripping the path down so test for it -n is default operator
+			if [ "$pathname" ]; then
+
+				prevmatch=0
+				#todo: possibly there is a neater way to do this without a loop??
+				for incPath in "${incpaths[@]}" #loop through incpaths
+				do	
+					if [[ "$pathname" != "${pathname/$incPath/}" ]]; then
+						prevmatch=1
+					fi
+				done
+				
+				#if substring then do recurse				
+				if [[ $prevmatch -eq 0 ]]; then #make sure we have not previously matched
+
+					#pre-existing path: yes | no?			
+					if grep -rq "^[^#].*\s$pathname$" "${amm}/"*"/modman" #target is what is important so find end line not beginning line
+					then #pre-existing path: yes
+						echo "..."
+						echo "A path was found that exists in below modman description file" #error
+						grep -r --color=always "\s$pathname$" "${amm}/"*"/modman"
+						echo "It is therefore presently illegal for it to be included in this module." 
+						echo "..."
+						if [[ -d $f ]]; then
+								    incpaths+=("$pathname")
+								fi
+						read -p "press enter to continue..." goonthen
+					else #pre-existing path: no
+
+						read -p "include '$pathname': [N][y]" include #include path: yes | no?
+						if [[ "$include" == "" ]]; then
+						     include="N"
+						fi
+				
+						if [[ ${include,,} == "y" ]]; then #include path: yes
+					
+							echo "..."
+							echo "You answered y:yes modman will include the path"
+							echo "..."
+
+							#write path to modman
+							echo "$pathname  $pathname" >> $awc_desc #substring ${var:start} 
+							#was it a directory or file
+							if [[ -d $f ]]; then
+							    incpaths+=("$pathname")
+							fi
+
+						elif [[ ${include^^} == "N" ]]; then #include path: no
+							echo "You answered N:no, modman is not including the path"
+						else
+							echo "Warning: you answered $include which is invalid, modman is not including path"	
+						fi		
+				
+					fi # test other modules for pre-existing path
+				fi # test prvious match
+			fi #continue
+		done #no more paths
+		#return success
+		return 0
+}
 
 ###########################################################################
 # Get git remote tracking branch or an empty string
@@ -866,7 +966,7 @@ fi
 # Handle all other module-specific commands
 #############################################
 
-REGEX_ACTION='^(update|deploy|undeploy|skip|unskip|checkout|clone|hgclone|link|remove)$'
+REGEX_ACTION='^(update|deploy|undeploy|skip|unskip|checkout|clone|hgclone|link|remove|automodman)$'
 REGEX_NEW_MODULE='^(checkout|clone|hgclone|link)$'
 REGEX_BAD_MODULE="($REGEX_ACTION| )"
 REGEX_MODULE='^[a-zA-Z0-9_-]+$'
@@ -942,6 +1042,9 @@ wc_desc=$wc_dir/modman    # path to modman structure descriptor file
 
 case "$action" in
 
+  automodman)
+  	run_automodman "$module" "$mm" "$wc_dir" "$wc_desc"
+  ;;
   update)
     require_wc "$module" || exit 1
     cd "$wc_dir"
