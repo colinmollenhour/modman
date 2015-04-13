@@ -704,7 +704,7 @@ run_automodman () #"$module" "$mm" "$wc_dir" "$wc_desc"
 get_tracking_branch ()
 {
   local tracking_branch=$(git rev-parse --symbolic-full-name --abbrev-ref @{u} 2> /dev/null)
-  if [ -n $tracking_branch -a "$tracking_branch" != "@{u}" ]; then
+  if [ -n "$tracking_branch" -a "$tracking_branch" != "@{u}" ]; then
     echo $tracking_branch
   fi
 }
