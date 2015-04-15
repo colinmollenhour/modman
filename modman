@@ -348,12 +348,13 @@ set_basedir ()
 get_skipped ()
 {
   local module=$1
-  for line in $(grep -v -e '^#' "$root/.modman-skip"); do
-    if [ $line == $module ]; then
-      return 0
-    fi
-  done
-
+  if [ -f "$root/.modman-skip" ]; then
+    for line in $(grep -v -e '^#' "$root/.modman-skip"); do
+      if [ $line == $module ]; then
+        return 0
+      fi
+    done
+  fi
   return 1
 }
 
