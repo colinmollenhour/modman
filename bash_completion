@@ -30,7 +30,7 @@ _modman()
 		deploy | update)
 			opts="$(modman list) --force --no-clean --no-local --no-shell"
 			;;
-		remove | automodman)
+		remove | automodman | undeploy)
 			opts=$(modman list)
 			;;
 		*)
