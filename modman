@@ -673,7 +673,7 @@ run_automodman () #"$module" "$mm" "$wc_dir" "$wc_desc"
                  include="N"
             fi
         
-            if [[ ${include,,} == "y" ]]; then #include path: yes
+            if [ "$include" == "y" -o "$include" == "Y" ]; then #include path: yes
           
               echo "..."
               echo "You answered y:yes modman will include the path"
@@ -686,7 +686,7 @@ run_automodman () #"$module" "$mm" "$wc_dir" "$wc_desc"
                   incpaths+=("$pathname")
               fi
 
-            elif [[ ${include^^} == "N" ]]; then #include path: no
+            elif [ "$include" == "n" -o "$include" == "N" ]; then #include path: no
               echo "You answered N:no, modman is not including the path"
             else
               echo "Warning: you answered $include which is invalid, modman is not including path"  
