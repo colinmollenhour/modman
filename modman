@@ -564,6 +564,9 @@ apply_path ()
     if ! [ -L "$dest" ] && [ $FORCE -eq 0 ]; then
       echo_b "CONFLICT: $($stat_type "$dest") already exists and is not a symlink:"
       echo_b " $line"
+      if [[ "$line" != *"$real"* ]]; then
+        echo " $($stat_type "$dest") path: $real"
+      fi
       echo   "(Run with $(bold)--force$(unbold) to force removal of existing files and directories.)"
       return 1
     elif ! [ -L "$dest" ] || [ "$src" != "$(readlink "$dest")" ]; then
