@@ -866,25 +866,48 @@ elif [ "$action" = "update-all" ]; then
     test -d "$mm/$module" && require_wc "$module" || continue;
     cd "$mm/$module"
     success=1
-    if [ -d .git ] && [ "$(git remote)" != "" ]; then
-      echo "Fetching changes for $module"
-      success=0
-      if [ $FORCE -eq 1 ]; then
-        if git status -s | grep -vq '??'; then
-          echo "Cannot do --force update, module has uncommitted changes."
-          exit 1
-        else
-          git fetch --force && success=1
+    if [ -e .git ]; then
+      if [ -d .git ]; then
+        if [ "$(git remote)" != "" ]; then
+          echo "Fetching changes for $module"
+          success=0
+          if [ $FORCE -eq 1 ]; then
+            if git status -s | grep -vq '??'; then
+              echo "Cannot do --force update, module has uncommitted changes."
+              exit 1
+            else
+              git fetch --force && success=1
+            fi
+          else
+            git fetch && success=1
+          fi
         fi
       else
-        git fetch && success=1
+        echo "Git submodule detected. Determining state..."
+        if [ $(git rev-parse --symbolic-full-name --abbrev-ref HEAD) = "HEAD" ]; then
+          echo "In detached state, checking out main branch..."
+          branch=$(git ls-remote --heads origin | grep $(git rev-parse HEAD) | cut -d / -f 3)
+          git checkout $branch
+        fi
+        echo "Fetching changes for $module"
+        success=0
+        if [ $FORCE -eq 1 ]; then
+          if git status -s | grep -vq '??'; then
+            echo "Cannot do --force update, module has uncommitted changes."
+            exit 1
+          else
+            git fetch --force && success=1
+          fi
+        else
+          git fetch && success=1
+        fi
       fi
-    fi
-    if [ $success -eq 1 ]; then
-      updated="${updated}${module}\n"
-    else
-      echo_b -e "Failed to fetch updates for $module\n"
-      update_errors=$((update_errors+1))
+      if [ $success -eq 1 ]; then
+        updated="${updated}${module}\n"
+      else
+        echo_b -e "Failed to fetch updates for $module\n"
+        update_errors=$((update_errors+1))
+      fi
     fi
   done
 
@@ -900,7 +923,7 @@ elif [ "$action" = "update-all" ]; then
       else
         svn update && success=1
       fi
-    elif [ -d .git ] && [ "$(git remote)" != "" ]; then
+    elif [ -e .git ] && [ "$(git remote)" != "" ]; then
       tracking_branch=$(get_tracking_branch)
       echo "Updating $module"
       if [ -z $tracking_branch ]; then
@@ -1059,13 +1082,36 @@ case "$action" in
       else
         svn update && success=1
       fi
-    elif [ -d .git ]; then
-      if [ $FORCE -eq 1 ]; then
-        tracking_branch=$(git rev-parse --symbolic-full-name --abbrev-ref @{u})
-        [[ -n $tracking_branch ]] || { echo "Could not resolve remote tracking branch."; exit 1; }
-        git fetch --force && git reset --hard $tracking_branch && git submodule update --init --recursive && success=1
+    elif [ -e .git ]; then
+      if [ -d .git ]; then
+        if [ $FORCE -eq 1 ]; then
+          tracking_branch=$(git rev-parse --symbolic-full-name --abbrev-ref @{u})
+          [[ -n $tracking_branch ]] || { echo "Could not resolve remote tracking branch."; exit 1; }
+          git fetch --force && git reset --hard $tracking_branch && git submodule update --init --recursive && success=1
+        else
+          git pull && git submodule update --init --recursive && success=1
+        fi
       else
-        git pull && git submodule update --init --recursive && success=1
+        echo "Git submodule detected. Determining state..."
+        tracking_branch=$(git rev-parse --symbolic-full-name --abbrev-ref HEAD)
+        if [ $tracking_branch = "HEAD" ]; then
+          echo "In detached state, checking out main branch..."
+          git fetch
+          tracking_branch=$(git ls-remote --heads origin | grep $(git rev-parse HEAD) | cut -d / -f 3)
+          [[ -n $tracking_branch ]] || { echo "Could not resolve remote tracking branch."; exit 1; }
+          if [ $FORCE -eq 1 ]; then
+            git checkout $tracking_branch && git fetch --force && git reset --hard $tracking_branch && git submodule update --init --recursive && success=1
+          else
+            git checkout $tracking_branch && git pull && git submodule update --init --recursive && success=1
+          fi
+        else
+          echo "Tracking branch found, proceeding normally..."
+          if [ $FORCE -eq 1 ]; then
+            git fetch --force && git reset --hard $tracking_branch && git submodule update --init --recursive && success=1
+          else
+            git pull && git submodule update --init --recursive && success=1
+          fi
+        fi
       fi
     elif [ -d .hg ]; then
         hg pull && hg update && success=1
