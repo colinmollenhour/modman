@@ -389,6 +389,18 @@ set_skipped ()
   return 0
 }
 
+# Check if there is a symlink in a directory-path (e.g. b is a symlink, within a/b/c)
+is_symlink_path() {
+  local d="."
+  [ -z "$2" ] || d="$2"
+  local IFS=/;
+  for p in $1; do
+    d="$d/$p"
+    [ -h "$d" ] && return 0
+  done
+  return 1
+}
+
 get_abs_filename() {
   if [ -d "$(dirname "$1")" ]; then
     echo "$(cd "$(dirname "$1")/$(dirname "$(readlink "$1")")" && pwd)/$(basename "$1")"
@@ -501,7 +513,7 @@ apply_modman_file ()
     shopt -s extglob
     if ! [ -e "$src" ] && [ $(ls $src 2> /dev/null | wc -l) -gt 0 ]; then
       for _src in $src; do
-        apply_path "$_src" "$dest/${_src##*/}" "$target" "${real%/}/${_src##*/}" "$line" || return 1
+        apply_path "$_src" "$dest/${_src##*/}" "$target" "${real%/}/${_src##*/}" "$line" "$root" || return 1
       done
       continue
     fi # end Handle globbing
@@ -518,7 +530,7 @@ apply_modman_file ()
       dest="$dest/$(basename "$src")"
     fi
 
-    apply_path "$src" "$dest" "$target" "$real" "$line" || return 1
+    apply_path "$src" "$dest" "$target" "$real" "$line" "$root" || return 1
   done
 
   return 0
@@ -528,33 +540,36 @@ apply_modman_file ()
 # Creates a symlink or copies a file (with lots of error-checking)
 apply_path ()
 {
-  local src="$1"; local dest="$2"; local target="$3"; local real="$4"; local line="$5"
+  local src="$1"; local dest="$2"; local target="$3"; local real="$4"; local line="$5"; local root="$6"
+  local dest_parent="${dest%/*}"
 
-  # Make symlinks relative
+  # Make symlinks relative, if applicable
   if [ $COPY -eq 0 ]; then
-    local realpath=$($readlink_missing "${dest%/*}"); local commonpath=""
-    if [ "${dest%/*}" == "${realpath}" ]; then
-      # Use modman root as common path if destination is not itself a symlinked path
-      commonpath="${mmroot%/}"
-    else
-      # Search for longest common path as symlink target
-      for ((i=0; i<${#dest}; i++)); do
-        if [[ "${dest:i:1}" != "${realpath:i:1}" ]]; then
-          commonpath="${dest:0:i}"
-          commonpath="${commonpath%/*}"
-          break
-        fi
-      done
-    fi
-    # Replace destination (less common path) with ../*
-    if [ "$commonpath" != "" ]; then
-      local reldest="${dest#$commonpath/}"
-      if [ "$reldest" != "${reldest%/*}" ]; then
-        reldest=$(IFS=/; for d in ${reldest%/*}; do echo -n '../'; done)
+    if [ "$dest" = "${dest%/*}" ] || ! is_symlink_path "${dest_parent#$root/}" "$root"; then
+      local realpath=$($readlink_missing "${dest%/*}"); local commonpath=""
+      if [ "${dest%/*}" == "${realpath}" ]; then
+        # Use modman root as common path if destination is not itself a symlinked path
+        commonpath="${mmroot%/}"
       else
-        reldest=""
+        # Search for longest common path as symlink target
+        for ((i=0; i<${#dest}; i++)); do
+          if [[ "${dest:i:1}" != "${realpath:i:1}" ]]; then
+            commonpath="${dest:0:i}"
+            commonpath="${commonpath%/*}"
+            break
+          fi
+        done
       fi
-      src="${reldest}${src#$commonpath/}"
+      # Replace destination (less common path) with ../*
+      if [ "$commonpath" != "" ]; then
+        local reldest="${dest#$commonpath/}"
+        if [ "$reldest" != "${reldest%/*}" ]; then
+          reldest=$(IFS=/; for d in ${reldest%/*}; do echo -n '../'; done)
+        else
+          reldest=""
+        fi
+        src="${reldest}${src#$commonpath/}"
+      fi
     fi
   fi
 
