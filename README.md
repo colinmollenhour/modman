@@ -18,11 +18,27 @@ All of your cloned/checked-out modules will be kept in a directory named
   * Common utilities available in your PATH: grep (POSIX), find, ln, cp, basename, dirname
   * Web server must follow symlinks
   * git and/or subversion are optional (not required for "deploy" command)
-  * For Magento, if using template files in a modman module, you must enable "Allow Symlinks" (found under System > Configuration > Advanced > Developer)
-  
+
+### Magento Users
+
+If using template files in a modman module, you must either:
+
+#### Option 1:
+
+Use a [patched](https://gist.github.com/colinmollenhour/35c0d32dd651c4c8c840/revisions) version of Mage/Core/Block/Template.php. This gist is itself a modman module so you can install it by cloning it directly or you can integrate it into your environment some other way.
+
+```
+$ modman clone template-patch https://gist.github.com/35c0d32dd651c4c8c840.git
+```
+
+*NOTE:* I provide no warranties for using this patch. Use at your own risk!
+
+#### Option 2:
+Enable "Allow Symlinks" (found under System > Configuration > Advanced > Developer).
+
 ![Allow Symlinks](https://f.cloud.github.com/assets/1337461/43324/820d4d96-567f-11e2-947a-167bf76db33f.png)
-  
-*NOTE:* There is no additional security risk to allowing symlinks, despite the warning which says otherwise...
+
+*NOTE:* Disabling this security protection does decrease security as it allows template files to be loaded from any location. However, the risk is not so much symlinks as it is specially crafted template paths. The patched Template.php file (Option 1) allows the use of symlinks but should still prevent templates from being loaded from directories other than the app/design directory.
 
 ### Windows Users
 
