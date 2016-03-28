@@ -22,7 +22,7 @@ All of your cloned/checked-out modules will be kept in a directory named
   
 ![Allow Symlinks](https://f.cloud.github.com/assets/1337461/43324/820d4d96-567f-11e2-947a-167bf76db33f.png)
   
-*NOTE:* There is no additional security risk to allowing symlinks, despite the warning which says otherwise...
+*NOTE:* There is no additional security risk to allowing symlinks when running you system locally for development. However, running in a production enviornment with Allow Symlinks set to Yes may make you system vulnerable to a multi-vector privilege escalation attack.
 
 ### Windows Users
 
