@@ -48,18 +48,37 @@ with the authors and do not provide support for the PHP port, only a link here f
 
 ## Installation
 
+To install, you can go one of two ways. You can either install the the bash library in your user's root folder, or you can install modman so it is available globally
+
+Regardless of which option you choose, you should first run one of these two scripts to download the Modman repo.
+Then, choose your specific path afterwards to either install
 ```
 bash < <(wget -q --no-check-certificate -O - https://raw.github.com/colinmollenhour/modman/master/modman-installer)
-```
 
 or
 
-```
 bash < <(curl -s -L https://raw.github.com/colinmollenhour/modman/master/modman-installer)
 ```
 
+
+1. Root Folder
+
+After downloading modman, just Reload your Bash profile.
 ```
 source ~/.profile
+```
+
+2. Installing Modman globally
+
+Then, move the Modman script to an appropriate global script folder within your filesystem.
+Moving it to one of the paths already loaded in your $PATH will let you skip a step in the process.
+```
+mv ~/bin/modman/* /usr/local/{{ preferred folder }}
+```
+
+And then finally, alias Modman with a symlink
+```
+ln -s /usr/local/{{ preferred folder }}/modman /usr/local/{{ preferred folder }}/modman
 ```
 
 Note: modman is simply a bash script, so to use it you just need to place it in your $PATH
