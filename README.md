@@ -48,10 +48,8 @@ with the authors and do not provide support for the PHP port, only a link here f
 
 ## Installation
 
-To install, you can go one of two ways. You can either install the the bash library in your user's root folder, or you can install Modman so it is available globally.
-
-Regardless of which option you choose, you should first run one of these two scripts to download the Modman repo.
-Then, choose your specific path afterwards to either install within your user's root directory on in a global area
+To install Modman, you can either install the library in your user's root folder, or you can install Modman globally.
+Regardless of which option you choose, first run one of these two scripts to download the Modman repo.
 ```
 bash < <(wget -q --no-check-certificate -O - https://raw.github.com/colinmollenhour/modman/master/modman-installer)
 
@@ -60,19 +58,19 @@ or
 bash < <(curl -s -L https://raw.github.com/colinmollenhour/modman/master/modman-installer)
 ```
 
-###Root Folder
+####1. Root Folder
 
-After downloading Modman, just Reload your Bash profile.
+If you'd like to keep the script in its native location at ``` ~/bin/ ```, just reload your Bash profile.
 ```
 source ~/.profile
 ```
 
-###Installing Modman globally
+####2. Installing Modman Globally
 
-After downloading, move the Modman script to an appropriate global script folder within your filesystem, (e.g. /usr/local/bin/).
-Moving it to one of the paths already loaded in your $PATH variable will automatically pick it up with a ~/.profile reload.
+To make the script global after downloading, move the Modman script to an appropriate script folder, (e.g. ``` /usr/local/bin/ ``` or something similar within /usr/*).
+Moving it to one of the paths already loaded in your $PATH variable will automatically pick it up without a ~/.profile reload.
 ```
-mv ~/bin/modman/* /usr/local/{{ preferred folder }}
+mv ~/bin/modman /usr/local/{{ preferred folder }}
 ```
 
 And then finally, alias Modman with a symlink if you want something shorter to type (optional)
