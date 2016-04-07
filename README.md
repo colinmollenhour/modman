@@ -70,14 +70,14 @@ source ~/.profile
 ###Installing Modman globally
 
 After downloading, move the Modman script to an appropriate global script folder within your filesystem, (e.g. /usr/local/bin/).
-Moving it to one of the paths already loaded in your $PATH will let you skip a step in the process.
+Moving it to one of the paths already loaded in your $PATH variable will automatically pick it up with a ~/.profile reload.
 ```
 mv ~/bin/modman/* /usr/local/{{ preferred folder }}
 ```
 
-And then finally, alias Modman with a symlink
+And then finally, alias Modman with a symlink if you want something shorter to type (optional)
 ```
-ln -s /usr/local/{{ preferred folder }}/modman /usr/local/{{ preferred folder }}/modman
+ln -s /usr/local/{{ preferred folder }}/modman /usr/local/{{ preferred folder }}/{{ symlink  of your choice }}
 ```
 
 Note: modman is simply a bash script, so to use it you just need to place it in your $PATH
