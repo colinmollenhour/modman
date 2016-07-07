@@ -393,8 +393,16 @@ set_skipped ()
 
 get_abs_filename() {
   if [ -d "$(dirname "$1")" ]; then
-    echo "$(cd "$(dirname "$1")/$(dirname "$(readlink "$1")")" && pwd)/$(basename "$1")"
-  fi
+      SOURCE="$1"
+      while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
+          DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+          SOURCE="$(readlink "$SOURCE")"
+          [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+      done
+      DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+      fname=`basename $1`
+      echo $DIR"/"$fname
+ fi
 }
 
 remove_module_links ()
