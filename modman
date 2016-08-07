@@ -656,15 +656,9 @@ run_automodman () #"$module" "$mm" "$wc_dir" "$wc_desc"
       #first f tends to be empty because of our stripping the path down so test for it -n is default operator
       if [ "$pathname" ]; then
 
-        prevmatch=0
-        #todo: possibly there is a neater way to do this without a loop??
-        for incPath in "${incpaths[@]}" #loop through incpaths
-        do  
-          if [[ "$pathname" != "${pathname/$incPath/}" ]]; then
-            prevmatch=1
-          fi
-        done
-        
+        # find a previous match for the path. if there is one the exitcode will be 1, otherwise 0.
+        prevmatch=$(! printf -- '%s\n' "${ARRAY[@]}"  | grep -qv "${pathname/$incPath/}"; echo $?)
+
         #if substring then do recurse        
         if [[ $prevmatch -eq 0 ]]; then #make sure we have not previously matched
 
