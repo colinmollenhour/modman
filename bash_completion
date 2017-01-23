@@ -65,18 +65,13 @@ _modman_get_module()
         [ -z "$mm" ] && return 1
         root="$(dirname $mm)"
         module=''
-        i=0
-        while [ "$root" != "$(pwd)" ]; do
-                if [ "$i" -gt 5 ]; then
-                        break
-                fi
+        while [ "$root" != "$(pwd -P)" ]; do
                 modpath=`pwd`
                 if [ "$mm" = "$(dirname $modpath)" ]; then
                         module=$(basename $modpath)
                         break
                 fi
                 cd ..
-                i=$((i+1))
         done
         cd $_pwd
         [ -z "$module" ] && return 1
