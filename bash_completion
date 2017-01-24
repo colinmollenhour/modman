@@ -45,7 +45,7 @@ _modman_get_mm()
 {
 	local root _pwd
 	_pwd=$(pwd)
-	root=$(pwd -P)
+	root=$_pwd
 	while ! [ -d $root/.modman ]; do
 		if [ "$root" = "/" ]; then
 			cd $_pwd && return 1
@@ -65,8 +65,11 @@ _modman_get_module()
         [ -z "$mm" ] && return 1
         root="$(dirname $mm)"
         module=''
-        while [ "$root" != "$(pwd -P)" ]; do
+        while [ "$root" != "$(pwd)" ]; do
                 modpath=`pwd`
+                if [ "$modpath" = "/" ]; then
+				        cd $_pwd && return 1
+                fi
                 if [ "$mm" = "$(dirname $modpath)" ]; then
                         module=$(basename $modpath)
                         break
