@@ -190,7 +190,7 @@ action=$1; shift
 
 # Fix GNU inconsistencies with Mac
 case $OSTYPE in
-  darwin*|*bsd*)
+  darwin*|*bsd*|*BSD*)
     stat_type="bsd_stat"
     readlink_missing="echo" # readlink -m not supported
     ;;
