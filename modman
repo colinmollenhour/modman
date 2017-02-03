@@ -905,7 +905,7 @@ elif [ "$action" = "update-all" ]; then
         echo "Git submodule detected. Determining state..."
         if [ $(git rev-parse --symbolic-full-name --abbrev-ref HEAD) = "HEAD" ]; then
           echo "In detached state, checking out main branch..."
-          branch=$(git ls-remote --heads origin | grep $(git rev-parse HEAD) | cut -d / -f 3)
+          branch=$(git branch -r --list --contains $(git rev-parse HEAD) | sed -n '2p' | tr -d '[[:space:]]' | cut -d / -f 2)
           git checkout $branch
         fi
         echo "Fetching changes for $module"
@@ -1116,7 +1116,7 @@ case "$action" in
         if [ $tracking_branch = "HEAD" ]; then
           echo "In detached state, checking out main branch..."
           git fetch
-          tracking_branch=$(git ls-remote --heads origin | grep $(git rev-parse HEAD) | cut -d / -f 3)
+          tracking_branch=$(git branch -r --list --contains $(git rev-parse HEAD) | sed -n '2p' | tr -d '[[:space:]]' | cut -d / -f 2)
           [[ -n $tracking_branch ]] || { echo "Could not resolve remote tracking branch."; exit 1; }
           if [ $FORCE -eq 1 ]; then
             git checkout $tracking_branch && git fetch --force && git reset --hard $tracking_branch && git submodule update --init --recursive && success=1
@@ -1237,4 +1237,3 @@ case "$action" in
     exit 1
 
 esac
-
