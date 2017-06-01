@@ -67,7 +67,7 @@ Module Commands:
   [--no-shell]          skip processing @shell lines
   [--modmandir <path>]  the modman folder commands should be ran for]
   [--basedir <path>]    on checkout/clone, specifies a base for module deployment
-  [--copy]              deploy by copying files instead of symlinks
+  [--no-copy]           deploy by copying symlinks instead of files 
   [<VCS options>]       specify additional parameters to VCS checkout/clone
 "
 tutorial="\
@@ -729,7 +729,7 @@ FORCE=0               # --force option off by default
 NOLOCAL=0             # --no-local option off by default
 NOCLEAN=0             # --no-clean off by default
 NOSHELL=0             # --no-shell option off by default
-COPY=0                # --copy option off by default
+COPY=1                # --copy option on by default
 modmandir='.modman'   # --modmandir defaults to .modman
 basedir=''
 while true; do
@@ -738,7 +738,7 @@ while true; do
     --no-local)    NOLOCAL=1; shift ;;
     --no-clean)    NOCLEAN=1; shift ;;
     --no-shell)    NOSHELL=1; shift ;;
-    --copy)        COPY=1; shift ;;
+    --no-copy)     COPY=0; shift ;;
     --basedir)
       shift; basedir="$1"; shift
       if ! [ -n "$basedir" -a -d "$root/$basedir" ]; then
