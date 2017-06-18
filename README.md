@@ -58,14 +58,14 @@ or
 bash < <(curl -s -L https://raw.github.com/colinmollenhour/modman/master/modman-installer)
 ```
 
-####1. Root Folder
+#### 1. Root Folder
 
 If you'd like to keep the script in its native location at ``` ~/bin/ ```, just reload your Bash profile.
 ```
 source ~/.profile
 ```
 
-####2. Installing Modman Globally
+#### 2. Installing Modman Globally
 
 To make the script global after downloading, move the Modman script to an appropriate script folder, (e.g. ``` /usr/local/bin/ ``` or something similar within /usr/*).
 Moving it to one of the paths already loaded in your $PATH variable will automatically pick it up without a ~/.profile reload.
