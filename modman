@@ -656,12 +656,20 @@ run_automodman () #"$module" "$mm" "$wc_dir" "$wc_desc"
       #first f tends to be empty because of our stripping the path down so test for it -n is default operator
       if [ "$pathname" ]; then
 
-        # find a previous match for the path. if there is one the exitcode will be 1, otherwise 0.
-        prevmatch=$(! printf -- '%s\n' "${ARRAY[@]}"  | grep -qv "${pathname/$incPath/}"; echo $?)
-
+		  prevmatch=0
+		  
+		if [[ ${incpaths[@]} ]]; then
+  		  for i in "${incpaths[@]}"
+  		  do
+  		    if [[ "$pathname" =~ "$i" ]] ; then
+  		      prevmatch=1
+			fi  
+  		  done
+		fi
+		
         #if substring then do recurse        
-        if [[ $prevmatch -eq 0 ]]; then #make sure we have not previously matched
-
+        if [[ $prevmatch -eq 0 ]]; then #make sure we have not previously matched to prevent subpaths
+        
           #pre-existing path: yes | no?      
           if grep -rq "^[^#].*\s$pathname$" "${amm}/"*"/modman" #target is what is important so find end line not beginning line
           then #pre-existing path: yes
