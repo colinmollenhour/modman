@@ -559,9 +559,10 @@ apply_path ()
     fi
     # Replace destination (less common path) with ../*
     if [ "$commonpath" != "" ]; then
-      local reldest="${dest#$commonpath/}"
-      if [ "$reldest" != "${reldest%/*}" ]; then
-        reldest=$(IFS=/; for d in ${reldest%/*}; do echo -n '../'; done)
+      local reldest="${realpath#$commonpath/}"
+      # test if the linkname is not just a filename without a path
+      if [ "$real" != "${real%/*}" ]; then
+        reldest=$(IFS=/; for d in ${reldest}; do echo -n '../'; done)
       else
         reldest=""
       fi
