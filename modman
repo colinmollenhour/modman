@@ -416,7 +416,8 @@ remove_module_links ()
 {
   log "Removing links for module $module."
   local module_dir="$mm/$module"
-  for line in $(find $root -type l); do
+  # Use test -h instead of -type l to avoid bug in cifs
+  for line in $(find $root -exec test -h {} \; -print); do
     if [[ $(get_abs_filename "$line") =~ ^"$module_dir".* ]]; then
       rm "$line"
     fi
